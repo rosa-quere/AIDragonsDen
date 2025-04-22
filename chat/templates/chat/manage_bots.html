@@ -2,11 +2,23 @@
 
 {% block content %}
 <div class="container">
-    <h1>Manage Bots in Conversation: {{ conversation.title }}</h1>
+    <h1>Manage Bots for Conversation: {{ conversation.title|default:"New Conversation" }}</h1>
+
+    <!-- Existing Bots Form -->
     <form method="post">
         {% csrf_token %}
+        <h3>Select Existing Bots</h3>
         {{ form.as_p }}
         <button type="submit" class="btn btn-primary">Update Bots</button>
     </form>
+
+    <hr>
+
+    <!-- Add new bot button -->
+    <div>
+        <a href="{% url 'chat:create_bot' conversation.uuid %}" class="btn btn-success">
+            + Add New Bot
+        </a>
+    </div>
 </div>
 {% endblock %}

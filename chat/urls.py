@@ -38,4 +38,6 @@ urlpatterns = [
     ),
     path("chat/<uuid:conversation_uuid>/delete/", views.chat_delete, name="chat_delete"),
     path("accounts/", include("django.contrib.auth.urls")),
+    path("chat/<uuid:conversation_uuid>/setup/", views.setup_conversation, name="setup_conversation"),
+    path("chat/<uuid:conversation_uuid>/bots/create/", views.create_bot, name="create_bot"),
 ]

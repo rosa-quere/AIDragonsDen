@@ -3,13 +3,36 @@ import logging
 from django.conf import settings
 
 from chat.prompt_templates import prompts
+from chat.llm import prompt_llm_messages
 
 logger = logging.getLogger(__name__)
 
+def get_last_active_bot(conversation):
+    last_message = conversation.messages.filter(participant__participant_type="bot").order_by("timestamp").last()
+    if last_message:
+        return last_message.participant.bot 
+    else:
+        return [participant.bot for participant in conversation.participants.filter(participant_type="bot")][0]
+        #return random([participant.bot for participant in conversation.participants.filter(participant_type="bot")])
 
-def detect_mention(bot_name, message):
-    if f"@{bot_name.lower()}" in message.lower():
-        return True
+
+def detect_mention(bot_name, messages):
+    mentionned = [msg for msg in messages if f"@{bot_name.lower()}" in msg.message.lower()]
+    return False if len(mentionned)==0 else mentionned
+    
+def detect_question(msg, bot):
+    message = {
+        "role": "user" if msg.participant.participant_type == "user" else "assistant",
+        "name": msg.participant.user.username if msg.participant.participant_type == "user" else msg.participant.bot.name,
+        "content": msg.message,
+    }
+    bot_response = prompt_llm_messages(
+        [message, {
+            "role": "user",
+            "name": "System",
+            "content": prompts['is_question'],
+        }], model=bot.model, temperature=bot.temperature)
+    return judge_bot_determination(bot_response)
 
 
 def judge_bot_determination(bot_response):
@@ -30,3 +53,6 @@ def get_system_prompt(conversation, bot):
     logger.debug(f"System Prompt: {system_promopt}")
 
     return system_promopt
+
+def get_sub_topic_status(message):
+    pass

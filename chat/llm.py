@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 
 #import openai
 import mistralai
@@ -15,44 +16,50 @@ logger = logging.getLogger(__name__)
 def prompt_llm_messages(
     messages,
     model=settings.LLM["mistral_basic_model"],
-    endpoint="https://api.openai.com/v1/",
     response_format=None,
     temperature=0.8,
 ):
-    try:
-        # client = openai.OpenAI(
-        #     api_key=settings.OPENAI_API_KEY,
-        #     base_url=endpoint,
-        # )
-        client = mistralai.Mistral(api_key=settings.MISTRAL_API_KEY)
+    client = mistralai.Mistral(api_key=settings.MISTRAL_API_KEY)
+    max_retries = settings.MAX_RETRIES
+    retry_delay = settings.RETRY_DELAY
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.chat.complete(
+                model=settings.LLM["mistral_basic_model"],
+                temperature=temperature,
+                messages=messages,
+                response_format=response_format,
+            )
 
-        response = client.chat.complete(
-            model=settings.LLM["mistral_basic_model"],
-            temperature=temperature,
-            messages=messages,
-            response_format=response_format,
-        )
+            bot_response = response.choices[0].message.content
+            print(bot_response)
+            # We store the last prompt/message
+            LLMRequest.objects.create(
+                model=model,
+                temperature=temperature,
+                request_type="llm_messages",
+                prompt=messages[-1]["content"],
+                response=bot_response,
+                total_tokens=response.usage.total_tokens,
+                completion_tokens=response.usage.completion_tokens,
+            )
+            return bot_response
 
-        bot_response = response.choices[0].message.content
-
-        # We store the last prompt/message
-        LLMRequest.objects.create(
-            model=model,
-            temperature=temperature,
-            request_type="llm_messages",
-            prompt=messages[-1]["content"],
-            response=bot_response,
-            total_tokens=response.usage.total_tokens,
-            completion_tokens=response.usage.completion_tokens,
-        )
-
-        return bot_response
-    # except openai.BadRequestError as e:
-    #     logger.error(f"Bad request to OpenAI API: {e}")
-    #     return False
-    except mistralai.models.SDKError as e:
-        logger.error(f'Error Message: {e.message}')
-        return False
+        except mistralai.models.SDKError as e:
+            if "429" in str(e) or "Too Many Requests" in str(e):
+                logger.warning(f"[{attempt}/{max_retries}] Rate limit hit. Retrying in {retry_delay}s...")
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
+                    continue
+            logger.error(f"SDKError on attempt {attempt}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unhandled exception during LLM request (attempt {attempt}): {e}")
+            return False
+    
+    # If all retries failed
+    logger.error("Failed to complete LLM prompt after all retries.")
+    return False
 
 
 def llm_conversation_title(conversation):

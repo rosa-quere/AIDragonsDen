@@ -27,7 +27,18 @@ class Trigger(models.Model):
     name = models.CharField(max_length=255)
 
     def __str__(self):
-        return f"Trigger {self.id}: {self.name}"
+        return f"{self.name}"
+    
+class SubTopic(models.Model):
+    STATUS_CHOICES = (
+        ("being discussed", "Being Discussed"),
+        ("well discussed", "Well Discussed")
+    )
+    name = models.CharField(max_length=255)
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES)
+    
+    def __str__(self):
+        return f"{self.name}, {self.status}"
 
 
 class Conversation(models.Model):
@@ -38,6 +49,9 @@ class Conversation(models.Model):
     title_update_date = models.DateTimeField(auto_now=True)
     participants = models.ManyToManyField("Participant", related_name="conversations")
     triggers = models.ManyToManyField(Trigger, related_name="conversations", blank=True)
+    sub_topics = models.ManyToManyField(SubTopic, related_name="conversations")
+    summary = models.CharField(max_length=255, blank=True, null=True)
+    summary_update_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Conversation {self.uuid} created on {self.creation_date}"
@@ -71,6 +85,7 @@ class Participant(models.Model):
         blank=True,
         related_name="participant_bot",
     )
+    #summaries = models.ManyToManyField()
 
     def __str__(self):
         return f"Participant ({self.participant_type}) - {'User: ' + self.user.username if self.user else 'Bot: ' + self.bot.name}"

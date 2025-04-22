@@ -6,7 +6,7 @@ from django.views.decorators.http import require_http_methods
 from django_q.models import Schedule
 from django_q.tasks import async_task, schedule
 
-from chat.forms import ManageBotsForm, ManageTriggersForm
+from chat.forms import ManageBotsForm, ManageTriggersForm, CreateBotForm
 from chat.llm import llm_conversation_title
 from chat.models import Conversation, Message, Participant, Trigger
 from chat.triggers import mention
@@ -31,10 +31,10 @@ def chat_new(request):
     participant, _ = Participant.objects.get_or_create(participant_type="user", user=request.user)
     conversation.participants.add(participant)
 
-    # Add default trigger
-    conversation.triggers.add(Trigger.objects.get(name="mention"))
+    # # Add default trigger
+    # conversation.triggers.add(Trigger.objects.get(name="mention"))
 
-    # Add task
+    # # Add task
     schedule(
         "chat.tasks.generate_messages",
         conversation_id=conversation.id,
@@ -43,8 +43,18 @@ def chat_new(request):
         name=f"generate_messages_{conversation.uuid}",
     )
 
-    # Redirect to the chat view for the newly created conversation
-    return redirect(f"/chat/{conversation.uuid}")
+    # # Redirect to the chat view for the newly created conversation
+    # return redirect(f"/chat/{conversation.uuid}")
+    return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
+
+@login_required
+def setup_conversation(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+    context = {
+        "conversation": conversation,
+        "version": settings.VERSION,
+    }
+    return render(request, "chat/setup_conversation.html", context)
 
 
 @login_required
@@ -132,7 +142,7 @@ def manage_bots_in_conversation(request, conversation_uuid):
                 participant, created = Participant.objects.get_or_create(participant_type="bot", bot=bot)
                 conversation.participants.add(participant)
 
-            return redirect("chat:chat", conversation_uuid=conversation_uuid)
+            return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
     else:
         form = ManageBotsForm(initial={"bots": conversation.participants.filter(participant_type="bot").values_list("bot", flat=True)})
 
@@ -146,6 +156,31 @@ def manage_bots_in_conversation(request, conversation_uuid):
 
     return render(request, "chat/manage_bots.html", context)
 
+@login_required
+@require_http_methods(["GET", "POST"])
+def create_bot(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+
+    if request.method == "POST":
+        form = CreateBotForm(request.POST)
+        if form.is_valid():
+            new_bot = form.save()
+
+            # Add the new bot to the conversation
+            participant, _ = Participant.objects.get_or_create(participant_type="bot", bot=new_bot)
+            conversation.participants.add(participant)
+
+            return redirect("chat:manage_bots_in_conversation", conversation_uuid=conversation_uuid)
+    else:
+        form = CreateBotForm()
+
+    context = {
+        "conversation": conversation,
+        "form": form,
+        "version": settings.VERSION,
+    }
+
+    return render(request, "chat/create_bot.html", context)
 
 @login_required
 @require_http_methods(["GET", "POST"])
@@ -166,7 +201,7 @@ def manage_triggers_for_conversation(request, conversation_uuid):
             for trigger in selected_triggers:
                 conversation.triggers.add(trigger)
 
-            return redirect("chat:chat", conversation_uuid=conversation_uuid)
+            return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
     else:
         form = ManageTriggersForm(initial={"triggers": conversation.triggers.all().values_list(flat=True)})
 

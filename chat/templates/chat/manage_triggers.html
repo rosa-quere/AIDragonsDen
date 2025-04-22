@@ -6,7 +6,16 @@
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}
+        <div class="mb-3">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllCheckboxes()">Select All</button>
+        </div>
         <button type="submit" class="btn btn-primary">Update Triggers</button>
     </form>
 </div>
+<script>
+    function selectAllCheckboxes() {
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][name="triggers"]');
+        checkboxes.forEach(cb => cb.checked = true);
+    }
+</script>
 {% endblock %}

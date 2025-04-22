@@ -10,6 +10,10 @@ class ManageBotsForm(forms.Form):
         label="Select Bots",
     )
 
+class CreateBotForm(forms.ModelForm):
+    class Meta:
+        model = Bot
+        fields = ['name', 'description', 'color', 'model', 'prompt', 'temperature']
 
 class ManageTriggersForm(forms.Form):
     triggers = forms.ModelMultipleChoiceField(

@@ -54,10 +54,10 @@ def check_message(new_message, bot):
     else:
         return True
 
-
-def generate_message_mention(conversation, message, bot):
-    if not check_turn(conversation, bot):
-        return False
+def set_up(conversation, bot, override_turn=False):
+    if not override_turn:
+        if not check_turn(conversation, bot):
+            return False
 
     # Prepare the system message using the bot's prompt
     system_prompt = get_system_prompt(conversation, bot)
@@ -67,7 +67,7 @@ def generate_message_mention(conversation, message, bot):
     # Retrieve all messages for the conversation ordered by timestamp
     conversation_messages = Message.objects.filter(conversation=conversation).order_by("timestamp")
 
-    # Convert each message into the format required by OpenAI
+    # Convert each message into the format required by LLM
     for msg in conversation_messages:
         role = "user" if msg.participant.participant_type == "user" else "assistant"
         messages.append(
@@ -77,28 +77,88 @@ def generate_message_mention(conversation, message, bot):
                 "content": msg.message,
             }
         )
+    return messages
 
+def generate_best_message(conversation, bot, answers):
+    # Convert each message into the format required by LLM
+    messages = []
+    for msg in answers:
+        role = "assistant"
+        messages.append(
+            {
+                "role": role,
+                "name": msg.participant.bot.name,
+                "content": msg,
+            }
+        )
+    if messages is False:
+        return False
     messages.append(
         {
             "role": "user",
             "name": "System",
-            "content": prompts["mention"].format(bot_name=bot.name),
+            "content": prompts["combine_answers"],
         }
     )
-
     bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
-
     if not check_message(bot_response, bot):
-        logger.info(f"[Mention] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
+        logger.info(f"[{"combine_answers"}] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
         return False
-
-    logger.info(f"[Mention] Generating a new message as {bot.name}")
+    logger.info(f"[{"combine_answers"}] Generating a new message as {bot.name}")
     Message.objects.create(
         conversation=conversation,
         participant=conversation.participants.get(bot__id=bot.id),
         message=bot_response,
     )
 
+def generate_message(conversation, bot, strategy, override_turn=False, **kwargs):
+    messages = set_up(conversation, bot, override_turn)
+    if messages is False:
+        return False
+    messages.append(
+        {
+            "role": "user",
+            "name": "System",
+            "content": prompts[strategy].format(bot_name=bot.name, **kwargs),
+        }
+    )
+    bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
+    if not check_message(bot_response, bot):
+        logger.info(f"[{strategy}] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
+        return False
+    #logger.info(f"[{strategy}] Generating a new message as {bot.name}")
+    # Message.objects.create(
+    #     conversation=conversation,
+    #     participant=conversation.participants.get(bot__id=bot.id),
+    #     message=bot_response,
+    # )
+    return bot_response
+
+def generate_message_summarize(conversation, bot):
+    messages = set_up(conversation, bot)
+    if messages is False:
+        return False
+    messages.append(
+            {
+                "role": "user",
+                "name": "System",
+                "content": prompts["summarize"].format(bot_name=bot.name),
+            }
+        )
+
+    bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
+
+    if not check_message(bot_response, bot):
+        logger.info(f"[Summary] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
+        return False
+
+    logger.info(f"[Summary] Generating a new message as {bot.name}")
+    return bot_response
+    # Message.objects.create(
+    #     conversation=conversation,
+    #     participant=conversation.participants.get(bot__id=bot.id),
+    #     message=bot_response,
+    # )
 
 def generate_message_general(conversation, bot):
     if not check_turn(conversation, bot):

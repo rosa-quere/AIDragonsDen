@@ -1,3 +1,5 @@
+{% load message_filters %}
+
 <ul class="list-group" id="message-list" style="list-style-type: none; padding: 0;">
     {% for message in messages %}
         <li class="d-flex {% if message.participant.user == request.user %}justify-content-end{% else %}justify-content-start{% endif %} mb-2">
@@ -13,7 +15,7 @@
                     {% endif %}
                 </span>
                 <br>
-                {{ message.message }}
+                {{ message.message|highlight_mentions|render_markdown }}
                 <br>
                 <span class="message-timestamp">{{ message.timestamp|date:"H:i:s" }}</span>
             </div>

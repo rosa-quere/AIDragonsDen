@@ -1,0 +1,23 @@
+{% extends "chat/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>Customize Conversation: {{ conversation.title|default:"Untitled" }}</h1>
+    <p>Select bots and triggers you'd like to include in this conversation.</p>
+
+    <div class="mb-3">
+        <a href="{% url 'chat:manage_bots_in_conversation' conversation.uuid %}" class="btn btn-secondary">
+            ➕ Manage Bots
+        </a>
+        <a href="{% url 'chat:manage_triggers_for_conversation' conversation.uuid %}" class="btn btn-secondary">
+            ⚙️ Manage Triggers
+        </a>
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'chat:chat' conversation.uuid %}" class="btn btn-primary">
+            ✅ Done — Go to Chat
+        </a>
+    </div>
+</div>
+{% endblock %}
