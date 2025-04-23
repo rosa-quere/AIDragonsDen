@@ -4,7 +4,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django_q.models import Schedule
-from django_q.tasks import async_task, schedule
+from django_q.tasks import async_task
 
 from chat.forms import ManageBotsForm, ManageTriggersForm, CreateBotForm
 from chat.llm import llm_conversation_title
@@ -34,14 +34,14 @@ def chat_new(request):
     # # Add default trigger
     # conversation.triggers.add(Trigger.objects.get(name="mention"))
 
-    # # Add task
-    schedule(
-        "chat.tasks.generate_messages",
-        conversation_id=conversation.id,
-        schedule_type="I",
-        minutes=1,
-        name=f"generate_messages_{conversation.uuid}",
-    )
+    # # # Add task
+    # schedule(
+    #     "chat.tasks.generate_messages",
+    #     conversation_id=conversation.id,
+    #     schedule_type="I",
+    #     minutes=3,
+    #     name=f"generate_messages_{conversation.uuid}",
+    # )
 
     # # Redirect to the chat view for the newly created conversation
     # return redirect(f"/chat/{conversation.uuid}")
@@ -114,8 +114,8 @@ def send_message(request, conversation_uuid):
         message_content = request.POST["message"]
         Message.objects.create(conversation=conversation, participant=participant, message=message_content)
 
-        if conversation.triggers.filter(name="mention").exists():
-            mention(conversation)
+        # if conversation.triggers.filter(name="mention").exists():
+        #     mention(conversation)
 
     # Return updated messages list
     messages = Message.objects.filter(conversation=conversation).select_related("participant__user", "participant__bot").order_by("timestamp")

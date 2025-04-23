@@ -53,9 +53,8 @@ def update_sub_topics_status(conversation):
             ts = pair.split(",")
             if len(ts) != 2:
                 continue
-            sub_topic, created = SubTopic.objects.get_or_create(name=ts[0])
+            sub_topic, created = SubTopic.objects.get_or_create(name=ts[0], conversation=conversation)
             sub_topic.status = ts[1].lstrip()
-            #sub_topic.messages.add(ids)
             sub_topic.save()
             if created:
                 conversation.sub_topics.add(sub_topic)

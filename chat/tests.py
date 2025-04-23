@@ -23,11 +23,12 @@ class StrategyTestCase(TestCase):
 
     def test_mention(self):
         """Test if the mention strategy is correctly triggered when a bot is mentioned."""
-        message = Message.objects.create(conversation=self.conversation, participant=self.user, message="@TestBot Hello!")
+        Message.objects.create(conversation=self.conversation, participant=self.user, message="@TestBot Hello!")
 
-        mention(self.conversation)
+        response = mention(self.conversation)
 
-        self.assertIn(self.bot, message.triggered_bots.all(), "Bot should be triggered when mentioned.")
+        self.assertIsInstance(response, dict)
+        self.assertIn(self.bot, response.keys())
         
     def test_indirect(self):
         """Test if the indirect strategy is correctly triggered when an indirect question is asked."""
@@ -35,11 +36,11 @@ class StrategyTestCase(TestCase):
         self.conversation.participants.add(self.extra_bot)
         Message.objects.create(conversation=self.conversation, participant=self.user, message="What does everyone think about AI?")
         
-        indirect(self.conversation)
+        response = indirect(self.conversation)
         
-        last_messages = self.conversation.messages.order_by("-timestamp")[:2]
-        self.assertEqual(self.bot_participant, last_messages[1].participant)
-        self.assertEqual(self.extra_bot, last_messages[0].participant)
+        self.assertIsInstance(response, dict)
+        self.assertIn(self.bot, response.keys())
+        self.assertIn(self.extra_bot.bot, response.keys())
 
     def test_summarize(self):
         """Test Initiative Summarization when enough participants are active."""
@@ -47,11 +48,13 @@ class StrategyTestCase(TestCase):
             Message.objects.create(conversation=self.conversation, participant=self.user, message=f"Sub Topic 1: message {i}")
             Message.objects.create(conversation=self.conversation, participant=self.user, message=f"Sub Topic 2: message {i}")
 
-        summarize(self.conversation)
+        response = summarize(self.conversation)
 
-        summary_message = self.conversation.messages.order_by("timestamp").last()
+        self.assertIsInstance(response, dict)
+        summary_message = response.values()[0]
+        self.assertIn(self.bot, response.keys())
         self.assertIsNotNone(summary_message, "A summary message should be generated.")
-        self.assertIn("summary", summary_message.message.lower(), "Summary should be present in the generated message.")
+        self.assertIn("summary", summary_message.lower(), "Summary should be present in the generated message.")
         self.assertLessEqual(abs(self.conversation.summary_update_date - timezone.now()), timedelta(seconds=1)
 )
 
@@ -61,11 +64,13 @@ class StrategyTestCase(TestCase):
         for i in range(10):
             Message.objects.create(conversation=self.conversation, participant=self.user, message=f"Hello {i}, im a cool bot.")
         
-        encourage(self.conversation)
+        response = encourage(self.conversation)
 
-        encouragement_message = self.conversation.messages.order_by("timestamp").last()
+        self.assertIsInstance(response, dict)
+        encouragement_message = response.values()[0]
+        self.assertIn(self.bot, response.keys())
         self.assertIsNotNone(encouragement_message, "An encouragement message should be generated.")
-        self.assertIn("silent", encouragement_message.message.lower(), "Encouragement should be in message.")
+        self.assertIn("silent", encouragement_message.lower(), "Encouragement should be in message.")
 
     def test_transition(self):
         """Test Sub-topic Transition when the current topic is well-discussed."""
@@ -73,9 +78,11 @@ class StrategyTestCase(TestCase):
             Message.objects.create(conversation=self.conversation, participant=self.user, message=f"Topic discussion {i}")
 
         update_sub_topics_status(self.conversation)
-        transition(self.conversation)
+        response = transition(self.conversation)
 
-        transition_message = self.conversation.messages.order_by("timestamp").last()
+        self.assertIsInstance(response, dict)
+        transition_message = response.values()[0]
+        self.assertIn(self.bot, response.keys())
         self.assertIsNotNone(transition_message, "A sub-topic transition message should be generated.")
         n_topics = len(self.conversation.sub_topics.all())
         update_sub_topics_status(self.conversation)
@@ -86,11 +93,12 @@ class StrategyTestCase(TestCase):
         for i in range(5):
             Message.objects.create(conversation=self.conversation, participant=self.user, message="I disagree!")
 
-        resolve(self.conversation)
-
-        resolution_message = self.conversation.messages.order_by("timestamp").last()
+        response = resolve(self.conversation)
+        
+        self.assertIsInstance(response, dict)
+        resolution_message = response.values()[0]
+        self.assertIn(self.bot, response.keys())
         self.assertIsNotNone(resolution_message, "A conflict resolution message should be generated.")
-        #self.assertIn("consensus", resolution_message.message.lower(), "Consensus suggestion should be present.")
 
     def test_chime_in_silence(self):
         """Test Chime-in strategy when conversation goes silent."""
@@ -107,9 +115,11 @@ class StrategyTestCase(TestCase):
         Message.objects.create(conversation=self.conversation, participant=self.user, message="Repeat")
         Message.objects.create(conversation=self.conversation, participant=self.user, message="Repeat")
 
-        chime_in(self.conversation)
+        response = chime_in(self.conversation)
         
-        chime_message = self.conversation.messages.order_by("timestamp").last()
+        self.assertIsInstance(response, dict)
+        chime_message = response.values()[0]
+        self.assertIn(self.bot, response.keys())
         self.assertIsNotNone(chime_message, "A chime-in message should be generated.")
         #self.assertIn("stuck", chime_message.message.lower(), "Chime-in message should suggest breaking repetition.")
 

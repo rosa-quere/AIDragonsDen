@@ -36,6 +36,8 @@ class SubTopic(models.Model):
     )
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=25, choices=STATUS_CHOICES)
+    status_updated_at = models.DateTimeField(auto_now=True)
+    conversation = models.ForeignKey("Conversation", on_delete=models.CASCADE, related_name="sub_topics", null=True,  blank=True)
     
     def __str__(self):
         return f"{self.name}, {self.status}"
@@ -49,7 +51,6 @@ class Conversation(models.Model):
     title_update_date = models.DateTimeField(auto_now=True)
     participants = models.ManyToManyField("Participant", related_name="conversations")
     triggers = models.ManyToManyField(Trigger, related_name="conversations", blank=True)
-    sub_topics = models.ManyToManyField(SubTopic, related_name="conversations")
     summary = models.CharField(max_length=255, blank=True, null=True)
     summary_update_date = models.DateTimeField(auto_now=True)
 

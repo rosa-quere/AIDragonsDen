@@ -43,16 +43,21 @@ def judge_bot_determination(bot_response):
 
 
 def get_system_prompt(conversation, bot):
-    system_promopt = prompts["bots_in_conversation"].format(
+    system_prompt = prompts["bots_in_conversation"].format(
         bot_name=bot.name,
         list_of_bots=conversation.list_of_bots(),
         list_of_humans=conversation.list_of_humans(),
         bot_prompt=bot.prompt,
         core_memories=bot.get_core_memories_for_prompt(n_last_memories=settings.MAX_CORE_MEMORIES_PER_PROMPT),
     )
-    logger.debug(f"System Prompt: {system_promopt}")
 
-    return system_promopt
+    return system_prompt
 
-def get_sub_topic_status(message):
-    pass
+def estimate_delay(conversation):
+    last_message = conversation.messages.order_by("timestamp").last()
+    if not last_message: # no messages need to send message now
+        return 0
+    if last_message.participant.bot: # last message was from a bot, need to wait for the user's input
+        return 5*60 # 5min
+    else:
+        return 30 # 30s to give the user a chance to expand on their message

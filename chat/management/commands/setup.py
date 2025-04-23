@@ -24,6 +24,6 @@ class Command(BaseCommand):
         schedule(
             "chat.tasks.update_conversation_titles",
             schedule_type="I",
-            minutes=1,
+            minutes=2,
             name="update_conversation_titles",
         )

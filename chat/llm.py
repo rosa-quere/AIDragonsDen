@@ -32,7 +32,7 @@ def prompt_llm_messages(
             )
 
             bot_response = response.choices[0].message.content
-            print(bot_response)
+            print(f'[LLM] Bot response: {bot_response}')
             # We store the last prompt/message
             LLMRequest.objects.create(
                 model=model,
