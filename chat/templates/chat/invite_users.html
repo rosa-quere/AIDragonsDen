@@ -1,0 +1,29 @@
+{% extends "chat/base.html" %}
+{% block content %}
+<h2>Invite Users to Join</h2>
+<p>Share this link to allow someone to join the conversation as a guest:</p>
+<input type="text" id="invite_link" class="form-control" value="{{ invite_link }}" readonly> <br>
+<button id="copy_button" class="btn btn-primary" onclick="copyInviteLink()">📋 Copy to Clipboard</button> <br>
+<a href="{% url 'chat:setup_conversation' conversation.uuid %}" class="btn btn-secondary mt-3">
+    🔙 Back to Setup
+</a>
+<script>
+function copyInviteLink() {
+    const linkText = document.getElementById("invite_link");
+    linkText.select();
+    linkText.setSelectionRange(0, 99999); // For mobile devices
+    
+    navigator.clipboard.writeText(linkText.value).then(function() {
+        const button = document.getElementById("copy_button");
+        button.innerHTML = "✅ Copied!";
+        
+        // Reset the button text back to original after 2 seconds
+        setTimeout(function() {
+            button.innerHTML = "📋 Copy to Clipboard";
+        }, 2000);
+    }, function(err) {
+        alert("Failed to copy link: " + err);
+    });
+}
+</script>
+{% endblock %}

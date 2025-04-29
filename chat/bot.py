@@ -2,7 +2,7 @@ import logging
 
 from django.conf import settings
 
-from chat.helpers import get_system_prompt, judge_bot_determination
+from chat.helpers import get_system_prompt
 from chat.llm import prompt_llm_messages
 from chat.models import Message
 from chat.prompt_templates import prompts
@@ -48,6 +48,8 @@ def check_turn(conversation, bot):
 
 def check_message(new_message, bot):
     # Self-Referential @mention
+    if not new_message:
+        return False
     if f"@{bot.name.lower()}" in new_message.lower().strip():
         logger.info("[INFO] Self-referential response")
         return False
@@ -79,8 +81,9 @@ def set_up(conversation, bot, override_turn=False):
         )
     return messages
 
-def generate_best_message(conversation, bot, answers):
-    # Convert each message into the format required by LLM
+def synthesize(conversation, bot, answers):
+    if len(answers)==1:
+        return post_message(conversation, bot, answers[0])
     system_prompt = get_system_prompt(conversation, bot)
     messages = [{"role": "system", "name": "system", "content": system_prompt}]
     
@@ -107,11 +110,7 @@ def generate_best_message(conversation, bot, answers):
         logger.info(f"[INFO][FINAL] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
         return False
     logger.info(f"[INFO][FINAL] Generating a new message as {bot.name}")
-    Message.objects.create(
-        conversation=conversation,
-        participant=conversation.participants.get(bot__id=bot.id),
-        message=bot_response,
-    )
+    return post_message(conversation, bot, bot_response)
 
 def generate_message(conversation, bot, strategy, override_turn=False, post=False, **kwargs):
     messages = set_up(conversation, bot, override_turn)
@@ -128,13 +127,9 @@ def generate_message(conversation, bot, strategy, override_turn=False, post=Fals
     if not check_message(bot_response, bot):
         logger.info(f"[INFO][{strategy}] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
         return False
-    if post:
-        logger.info(f"[INFO][{strategy}] Generating a new message as {bot.name}")
-        Message.objects.create(
-            conversation=conversation,
-            participant=conversation.participants.get(bot__id=bot.id),
-            message=bot_response,
-        )
+    if post: 
+        post_message(conversation, bot, bot_response)
+        logger.info(f"[INFO][{strategy}] Generating a new message as {bot.name}: {bot_response}")
     return bot_response
 
 def generate_message_summarize(conversation, bot):
@@ -157,69 +152,10 @@ def generate_message_summarize(conversation, bot):
 
     logger.info(f"[INFO][Summary] Generating a new message as {bot.name}")
     return bot_response
-    # Message.objects.create(
-    #     conversation=conversation,
-    #     participant=conversation.participants.get(bot__id=bot.id),
-    #     message=bot_response,
-    # )
 
-def generate_message_general(conversation, bot):
-    if not check_turn(conversation, bot):
-        return False
-
-    # Prepare the system message using the bot's prompt
-    system_prompt = get_system_prompt(conversation, bot)
-
-    messages = [{"role": "system", "name": "system", "content": system_prompt}]
-
-    # Retrieve all messages for the conversation ordered by timestamp
-    conversation_messages = Message.objects.filter(conversation=conversation).order_by("timestamp")
-
-    # Convert each message into the format required by OpenAI
-    for msg in conversation_messages:
-        role = "user" if msg.participant.participant_type == "user" else "assistant"
-        messages.append(
-            {
-                "role": role,
-                "name": msg.participant.user.username if msg.participant.participant_type == "user" else msg.participant.bot.name,
-                "content": msg.message,
-            }
-        )
-
-    messages.append(
-        {
-            "role": "user",
-            "name": "System",
-            "content": prompts["general_determine"].format(bot_name=bot.name),
-        }
+def post_message(conversation, bot, msg):
+    Message.objects.create(
+        conversation=conversation,
+        participant=conversation.participants.get(bot__id=bot.id),
+        message=msg,
     )
-
-    # No bot specific temperature for this prompt
-    bot_response = prompt_llm_messages(messages, model=bot.model)
-    logger.debug(f'[DEBUG] Bot response: {bot_response}')
-
-    if judge_bot_determination(bot_response):
-        messages.pop()
-
-        messages.append(
-            {
-                "role": "user",
-                "name": "System",
-                "content": prompts["general_generate"].format(bot_name=bot.name),
-            }
-        )
-
-        bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
-
-        if not check_message(bot_response, bot):
-            logger.info(f"[INFO][Mention] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
-            return False
-
-        logger.info(f"[INFO][General] Generating a new message as {bot.name}")
-        Message.objects.create(
-            conversation=conversation,
-            participant=conversation.participants.get(bot__id=bot.id),
-            message=bot_response,
-        )
-    else:
-        logger.info(f"[INFO][General] Not generating a new message as {bot.name}. Bot response: {bot_response}")

@@ -1,0 +1,33 @@
+{% extends "chat/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>Manage Strategies for Conversation: {{ conversation.title }}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="mb-3">
+            <button type="button" id="toggleButton" class="btn btn-sm btn-secondary" onclick="toggleCheckboxes()">Unselect All</button>
+        </div>
+        <button type="submit" class="btn btn-primary">Update Strategies</button>
+    </form>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][name="strategies"]');
+        checkboxes.forEach(cb => cb.checked = true);
+    });
+    function toggleCheckboxes() {
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][name="strategies"]');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+        if (allChecked) {
+            checkboxes.forEach(cb => cb.checked = false);
+            document.getElementById('toggleButton').textContent = 'Select All';
+        } else {
+            checkboxes.forEach(cb => cb.checked = true);
+            document.getElementById('toggleButton').textContent = 'Unselect All';
+        }
+    }
+</script>
+{% endblock %}

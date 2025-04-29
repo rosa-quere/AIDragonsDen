@@ -32,12 +32,14 @@ urlpatterns = [
         name="manage_bots_in_conversation",
     ),
     path(
-        "chat/<uuid:conversation_uuid>/manage_triggers/",
-        views.manage_triggers_for_conversation,
-        name="manage_triggers_for_conversation",
+        "chat/<uuid:conversation_uuid>/manage_strategies/",
+        views.manage_strategies_for_conversation,
+        name="manage_strategies_for_conversation",
     ),
     path("chat/<uuid:conversation_uuid>/delete/", views.chat_delete, name="chat_delete"),
     path("accounts/", include("django.contrib.auth.urls")),
     path("chat/<uuid:conversation_uuid>/setup/", views.setup_conversation, name="setup_conversation"),
     path("chat/<uuid:conversation_uuid>/bots/create/", views.create_bot, name="create_bot"),
+    path('chat/<uuid:conversation_uuid>/invite', views.invite_users, name='invite_users'),
+    path('chat/<uuid:conversation_uuid>/join/', views.join_conversation, name='join_conversation'),
 ]

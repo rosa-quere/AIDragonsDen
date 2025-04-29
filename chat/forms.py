@@ -1,6 +1,6 @@
 from django import forms
 
-from chat.models import Bot, Trigger
+from chat.models import Bot, Strategy
 
 
 class ManageBotsForm(forms.Form):
@@ -15,9 +15,9 @@ class CreateBotForm(forms.ModelForm):
         model = Bot
         fields = ['name', 'description', 'color', 'model', 'prompt', 'temperature']
 
-class ManageTriggersForm(forms.Form):
-    triggers = forms.ModelMultipleChoiceField(
-        queryset=Trigger.objects.all(),
+class ManageStrategiesForm(forms.Form):
+    strategies = forms.ModelMultipleChoiceField(
+        queryset=Strategy.objects.all(),
         widget=forms.CheckboxSelectMultiple,
-        label="Select Triggers",
+        label="Select Strategies",
     )

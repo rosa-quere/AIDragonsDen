@@ -1,6 +1,6 @@
 from django.test import TestCase
 from chat.models import Conversation, Message, Participant, Bot, User, SubTopic
-from chat.triggers import mention, summarize, encourage, transition, resolve, chime_in, indirect
+from chat.strategies import mention, summarize, encourage, transition, resolve, chime_in, indirect
 from chat.dialog_analyzer import update_sub_topics_status, extract_utterance_features, update_accumulative_summary, extract_participant_features
 from django.utils import timezone
 from datetime import timedelta

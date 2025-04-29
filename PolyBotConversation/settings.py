@@ -138,7 +138,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 Q_CLUSTER = {
     "name": "DjangoQ",
-    "workers": 1,
+    "workers": 2,
     "timeout": 90,
     "retry": 120,
     "queue_limit": 50,
@@ -187,6 +187,7 @@ LURKER_THRESHOLD_RATIO = 0.8
 LURKER_THRESHOLD_COUNT = 2
 INTEREST_THRESHOLD = 0.2
 STAGNATION_PERIOD = 8
+WAITING_MESSAGE_NB = 5
 SILENCE_SECONDS_THRESHOLD = 120
 REPETITION_THRESHOLD = 3
 

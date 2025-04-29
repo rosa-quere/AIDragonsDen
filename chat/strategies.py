@@ -1,13 +1,13 @@
 import logging
-import time
 import numpy as np
 
 from django.conf import settings
-from django.core.cache import cache
-from chat.bot import generate_message, generate_message_general
-from chat.helpers import detect_mention, get_last_active_bot, detect_question
+from django.utils import timezone
+from chat.bot import generate_message
+from chat.helpers import detect_mention, get_last_active_bot, detect_question, check_waiting, detect_human_mention
 from chat.dialog_analyzer import extract_utterance_features, extract_participant_features, get_active_participants, update_sub_topics_status, update_accumulative_summary
-from chat.models import Message
+from chat.models import Message, Conversation, Strategy
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,10 @@ def indirect(conversation):
     Replies to indirect questions i.e. without explicit mentions. Makes bots reply when general question is asked.
     """
     last_message = conversation.messages.order_by("timestamp").last()
+    if not last_message:
+        return False
     
-    if detect_question(last_message, get_last_active_bot(conversation)):
+    if detect_question(last_message):
         bots = [participant.bot for participant in conversation.participants.filter(participant_type="bot")]
         if last_message.participant.bot:
             bots.remove(last_message.participant.bot)
@@ -45,14 +47,6 @@ def indirect(conversation):
                 answers[bot] = response
         return answers if answers else False
     return False
-        
-
-def general(conversation):
-    bots = [participant.bot for participant in conversation.participants.filter(participant_type="bot")]
-
-    for bot in bots:
-        generate_message_general(conversation, bot)
-        time.sleep(5)
 
 def summarize(conversation):
     """
@@ -66,13 +60,6 @@ def summarize(conversation):
     if outcome_1 is True and outcome_2 is True and len(active_participants) >= settings.ACTIVE_PARTICIPANT_THRESHOLD:
         logger.info(f"[INFO] Initiative Summarization triggered with {len(active_participants)} active participants.")
         bot = get_last_active_bot(conversation)
-
-        # logger.info(f"[summarize] Generating a new message as {bot.name}")
-        # Message.objects.create(
-        #     conversation=conversation,
-        #     participant=conversation.participants.get(bot__id=bot.id),
-        #     message=conversation.summary,
-        # )
 
         conversation.summary_update_date = conversation.messages.latest("timestamp").timestamp
         conversation.save()
@@ -102,6 +89,8 @@ def encourage(conversation):
     N = settings.SHORT_TERM_CONTEXT
     lurkers = []
     response = None
+    strat_object = Strategy.objects.get(name="Encourage")
+    
     for user, stats in participant_stats.items():
         freq = stats['freq']
         length = stats['len']
@@ -112,12 +101,16 @@ def encourage(conversation):
             if len(recent_participation) < settings.LURKER_THRESHOLD_COUNT:
                 lurkers.append(user)
 
-    if lurkers:
+    if lurkers and check_waiting(conversation, strat_object.triggered_at):
         logger.info(f"[INFO] Encouraging lurkers: {[user.user.username if user.user else user.bot.name for user in lurkers]}")
         bot = get_last_active_bot(conversation)
         response = generate_message(conversation, bot, "encourage", override_turn=True, lurkers=lurkers)
+        if response:
+            strat_object.triggered_at = timezone.now()
+            strat_object.save()
+            return {bot:response}
     
-    return {bot:response} if response else False
+    return False
     
 def transition(conversation):
     """
@@ -131,14 +124,19 @@ def transition(conversation):
     active_participants = len(get_active_participants(conversation, settings.SHORT_TERM_CONTEXT))
     active_ratio = active_participants / total_participants
     response = None
+    strat_object = Strategy.objects.get(name="Transition")
     
     # Check if the sub-topic is well-discussed or losing interest
-    if extract_utterance_features(conversation).count()==0 or active_ratio <= settings.INTEREST_THRESHOLD:
+    if (extract_utterance_features(conversation).count()==0 or active_ratio <= settings.INTEREST_THRESHOLD) and check_waiting(conversation, strat_object.triggered_at):
         logger.info(f"[INFO] Transitioning to new sub-topic")
         bot = get_last_active_bot(conversation)
         response = generate_message(conversation, bot, "transition", override_turn=True)
+        if response:
+            strat_object.triggered_at = timezone.now()
+            strat_object.save()
+            return {bot:response}
     
-    return {bot:response} if response else False
+    return False
 
 def resolve(conversation):
     """
@@ -149,16 +147,19 @@ def resolve(conversation):
     if len(recent_messages) < settings.STAGNATION_PERIOD:
         return False
     earliest_timestamp = recent_messages[-1].timestamp
-    past_count = conversation.sub_topics.filter(status="well discussed", status_updated_at__lt=earliest_timestamp).count()
-    current_count = conversation.sub_topics.filter(status="well discussed").count()
     response = None
-
-    if current_count <= past_count:
+    strat_object = Strategy.objects.get(name="Resolve")
+    
+    if not conversation.sub_topics.filter(status_updated_at__gt=earliest_timestamp).exists() and check_waiting(conversation, strat_object.triggered_at):
         logger.info("[INFO] Conflict detected. Suggesting resolution.")
         bot = get_last_active_bot(conversation)
         response = generate_message(conversation, bot, "resolve", override_turn=True)
+        if response:
+            strat_object.triggered_at = timezone.now()
+            strat_object.save()
+            return {bot:response}
         
-    return {bot:response} if response else False
+    return False
 
 def chime_in(conversation):
     """
@@ -185,16 +186,17 @@ def chime_in_silence(conversation):
     bot = get_last_active_bot(conversation)
     generate_message(conversation, bot, "chime_in_silence", override_turn=True, post=True)
     
-def fallback_chime(conversation, start_time):
+def fallback_chime(conversation_id, start_time):
+    start_time = datetime.fromisoformat(start_time)
+    conversation = Conversation.objects.get(id=conversation_id)
     latest_message = conversation.messages.order_by("timestamp").last()
     if latest_message and latest_message.timestamp >= start_time:
         logger.info(f"[INFO] New message detected, aborting chime")
         return
-
+    elif detect_human_mention(latest_message):
+        logger.info(f"[INFO] Human Mention detected, aborting chime")
+        return
+    elif conversation.messages.all().count() >=2 and latest_message.participant.bot and len(set([msg.participant for msg in conversation.messages.order_by("-timestamp")[:2]]))==1:
+        logger.info(f"[INFO] Already Chimed in Silence, aborting chime")
+        return
     chime_in_silence(conversation)
-
-def clear_fallback_task(task):
-    conversation_id = task.args[0]
-    cache_key = f"fallback_chime_{conversation_id}"
-    cache.delete(cache_key)
-    logger.info(f"[INFO] Cleared fallback task cache for conversation {conversation_id}")

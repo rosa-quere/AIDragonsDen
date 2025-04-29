@@ -19,7 +19,8 @@
             {% endfor %}
         </div>
         <a href="{% url 'chat:manage_bots_in_conversation' conversation.uuid %}" class="btn btn-secondary mt-3">Modify Bots</a>
-        <a href="{% url 'chat:manage_triggers_for_conversation' conversation.uuid %}" class="btn btn-secondary mt-3">Modify Triggers</a>
+        <a href="{% url 'chat:manage_strategies_for_conversation' conversation.uuid %}" class="btn btn-secondary mt-3">Modify Strategies</a>
+        <a href="{% url 'chat:invite_users' conversation.uuid %}" class="btn btn-secondary mt-3">Invite Users</a>
         <a href="{% url 'chat:chat_delete' conversation.uuid %}" class="btn btn-warning mt-3">Delete</a>
     </div>
 </div>

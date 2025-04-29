@@ -4,6 +4,7 @@ from django.conf import settings
 
 from chat.prompt_templates import prompts
 from chat.llm import prompt_llm_messages
+from chat.models import Strategy, Participant
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,17 @@ def get_last_active_bot(conversation):
         return [participant.bot for participant in conversation.participants.filter(participant_type="bot")][0]
         #return random([participant.bot for participant in conversation.participants.filter(participant_type="bot")])
 
-
 def detect_mention(bot_name, messages):
     mentionned = [msg for msg in messages if f"@{bot_name.lower()}" in msg.message.lower()]
     return False if len(mentionned)==0 else mentionned
+
+def detect_human_mention(msg):
+    humans = [participant.user.username for participant in Participant.objects.filter(participant_type="user")]
+    for human in humans:
+        if f"@{human.lower()}" in msg.message.lower(): return True
+    return False
     
-def detect_question(msg, bot):
+def detect_question(msg):
     message = {
         "role": "user" if msg.participant.participant_type == "user" else "assistant",
         "name": msg.participant.user.username if msg.participant.participant_type == "user" else msg.participant.bot.name,
@@ -31,7 +37,7 @@ def detect_question(msg, bot):
             "role": "user",
             "name": "System",
             "content": prompts['is_question'],
-        }], model=bot.model, temperature=bot.temperature)
+        }], model=settings.MUCA["model"], temperature=settings.MUCA["temperature"])
     return judge_bot_determination(bot_response)
 
 
@@ -61,3 +67,9 @@ def estimate_delay(conversation):
         return 5*60 # 5min
     else:
         return 30 # 30s to give the user a chance to expand on their message
+    
+def check_waiting(conversation, triggered_at):
+    if not triggered_at:
+        return True
+    waiting_timestamp = conversation.messages.order_by("-timestamp")[settings.WAITING_MESSAGE_NB].timestamp
+    return triggered_at <= waiting_timestamp

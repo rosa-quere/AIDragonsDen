@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django_q.tasks import schedule
 
-from chat.models import Trigger
+from chat.models import Strategy
 
 
 class Command(BaseCommand):
@@ -17,13 +17,4 @@ class Command(BaseCommand):
         trigger_names = ["general", "mention"]
 
         for name in trigger_names:
-            Trigger.objects.get_or_create(name=name)
-
-        # Schedule general tasks
-
-        schedule(
-            "chat.tasks.update_conversation_titles",
-            schedule_type="I",
-            minutes=2,
-            name="update_conversation_titles",
-        )
+            Strategy.objects.get_or_create(name=name)

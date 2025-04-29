@@ -1,15 +1,15 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
+from django.contrib.auth import login
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django_q.models import Schedule
-from django_q.tasks import async_task
+from django_q.tasks import async_task, schedule
 
-from chat.forms import ManageBotsForm, ManageTriggersForm, CreateBotForm
+from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm
 from chat.llm import llm_conversation_title
-from chat.models import Conversation, Message, Participant, Trigger
-from chat.triggers import mention
+from chat.models import Conversation, Message, Participant, User, Strategy
 
 
 @login_required
@@ -30,21 +30,18 @@ def chat_new(request):
     # Create a participant for the logged-in user
     participant, _ = Participant.objects.get_or_create(participant_type="user", user=request.user)
     conversation.participants.add(participant)
-
-    # # Add default trigger
-    # conversation.triggers.add(Trigger.objects.get(name="mention"))
-
-    # # # Add task
-    # schedule(
-    #     "chat.tasks.generate_messages",
-    #     conversation_id=conversation.id,
-    #     schedule_type="I",
-    #     minutes=3,
-    #     name=f"generate_messages_{conversation.uuid}",
-    # )
-
-    # # Redirect to the chat view for the newly created conversation
-    # return redirect(f"/chat/{conversation.uuid}")
+    
+    # Add by default all strategies
+    for strat in Strategy.objects.all():
+        conversation.strategies.add(strat)
+    
+    schedule("chat.tasks.update_conversation_title",
+        conversation.id,
+        schedule_type="I",
+        minutes=2,
+        name=f"update_conversation_title_{conversation.id}",
+    )
+    
     return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
 
 @login_required
@@ -184,26 +181,26 @@ def create_bot(request, conversation_uuid):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def manage_triggers_for_conversation(request, conversation_uuid):
+def manage_strategies_for_conversation(request, conversation_uuid):
     conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
 
     if request.method == "POST":
-        form = ManageTriggersForm(request.POST)
+        form = ManageStrategiesForm(request.POST)
         if form.is_valid():
-            current_triggers = conversation.triggers.all()
-            selected_triggers = form.cleaned_data["triggers"]
+            current_strategies = conversation.strategies.all()
+            selected_strategies = form.cleaned_data["strategies"]
 
-            removed_triggers = current_triggers.exclude(id__in=selected_triggers)
+            removed_strategies = current_strategies.exclude(id__in=selected_strategies)
 
-            for removed_trigger in removed_triggers:
-                conversation.triggers.remove(removed_trigger)
+            for removed_strategies in removed_strategies:
+                conversation.strategies.remove(removed_strategies)
 
-            for trigger in selected_triggers:
-                conversation.triggers.add(trigger)
+            for strategy in selected_strategies:
+                conversation.strategies.add(strategy)
 
             return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
     else:
-        form = ManageTriggersForm(initial={"triggers": conversation.triggers.all().values_list(flat=True)})
+        form = ManageStrategiesForm(initial={"strategies": conversation.strategies.all().values_list(flat=True)})
 
     # Create the context to pass to the template
     context = {
@@ -213,7 +210,16 @@ def manage_triggers_for_conversation(request, conversation_uuid):
         "version": settings.VERSION,
     }
 
-    return render(request, "chat/manage_triggers.html", context)
+    return render(request, "chat/manage_strategies.html", context)
+
+@login_required
+def invite_users(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+    context = {
+        "conversation": conversation,
+        "invite_link": request.build_absolute_uri(conversation.invite_link),
+    }
+    return render(request, "chat/invite_users.html", context)
 
 
 @login_required
@@ -225,6 +231,19 @@ def chat_clear(request):
 
         if settings.BUILD_CORE_MEMORIES:
             async_task("chat.tasks.generate_core_memories", conversation)
+        
+        # Remove and delete temporary participants and users
+        temp_participants = conversation.participants.filter(is_temporary=True)
+        for participant in temp_participants:
+            if participant.user:
+                participant.user.delete()
+            participant.delete()
+        
+        # Cancel any previously scheduled task for this conversation
+        tasks = Schedule.objects.filter(name__contains=conversation.id)
+        if tasks:
+            for task in tasks:
+                task.delete()
 
         conversation.delete()
 
@@ -238,7 +257,55 @@ def chat_delete(request, conversation_uuid):
 
     if settings.BUILD_CORE_MEMORIES:
         async_task("chat.tasks.generate_core_memories", conversation)
+    
+    # Remove and delete temporary participants and users
+    temp_participants = conversation.participants.filter(is_temporary=True)
+    for participant in temp_participants:
+        if participant.user:
+            participant.user.delete()
+        participant.delete()
+    
+    # Cancel any previously scheduled task for this conversation
+    tasks = Schedule.objects.filter(name__contains=conversation.id)
+    if tasks:
+        for task in tasks:
+            task.delete()
 
     conversation.delete()
 
     return redirect("chat:index")
+
+def join_conversation(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+
+    if request.method == 'POST':
+        username = request.POST.get('username').strip()
+        if not username:
+            return render(request, 'join.html', {"error": "Username required", "conversation": conversation})
+        
+        # Check uniqueness within the conversation
+        if conversation.participants.filter(user__username=username).exists():
+            return render(request, "chat/join_conversation.html", {"error": "Username already taken in this conversation."})
+
+
+        # Create a temporary user
+        user_obj = User.objects.create(username=username)
+        user_obj.set_unusable_password()
+        user_obj.save()
+        
+        # Create and link the participant
+        user = Participant.objects.create(
+            user=user_obj,
+            participant_type="user",
+            is_temporary=True
+        )
+
+        # Add participant to conversation
+        conversation.participants.add(user)
+        
+        user_obj.backend = 'django.contrib.auth.backends.ModelBackend'
+        login(request, user_obj, backend=user_obj.backend)
+        
+        return redirect('chat:chat', conversation_uuid=conversation.uuid)
+
+    return render(request, 'chat/join_conversation.html', {"conversation": conversation})

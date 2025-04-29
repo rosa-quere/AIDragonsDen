@@ -3,14 +3,17 @@
 {% block content %}
 <div class="container">
     <h1>Customize Conversation: {{ conversation.title|default:"Untitled" }}</h1>
-    <p>Select bots and triggers you'd like to include in this conversation.</p>
+    <p>Select bots and strategies you'd like to include in this conversation.</p>
 
     <div class="mb-3">
         <a href="{% url 'chat:manage_bots_in_conversation' conversation.uuid %}" class="btn btn-secondary">
             ➕ Manage Bots
         </a>
-        <a href="{% url 'chat:manage_triggers_for_conversation' conversation.uuid %}" class="btn btn-secondary">
-            ⚙️ Manage Triggers
+        <a href="{% url 'chat:manage_strategies_for_conversation' conversation.uuid %}" class="btn btn-secondary">
+            ⚙️ Manage Strategies
+        </a>
+        <a href="{% url 'chat:invite_users' conversation.uuid %}" class="btn btn-secondary">
+            🧑‍🤝‍🧑 Invite Users
         </a>
     </div>
 

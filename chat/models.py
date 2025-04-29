@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.auth.models import User
 from django.db import models
+from django.urls import reverse
 
 
 class Bot(models.Model):
@@ -22,9 +23,10 @@ class Bot(models.Model):
         return "\n".join(core_memories)
 
 
-class Trigger(models.Model):
+class Strategy(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255)
+    triggered_at = models.DateTimeField(null=True, blank=True, default=None)
 
     def __str__(self):
         return f"{self.name}"
@@ -50,7 +52,7 @@ class Conversation(models.Model):
     creation_date = models.DateTimeField(auto_now_add=True)
     title_update_date = models.DateTimeField(auto_now=True)
     participants = models.ManyToManyField("Participant", related_name="conversations")
-    triggers = models.ManyToManyField(Trigger, related_name="conversations", blank=True)
+    strategies = models.ManyToManyField(Strategy, related_name="conversations", blank=True)
     summary = models.CharField(max_length=255, blank=True, null=True)
     summary_update_date = models.DateTimeField(auto_now=True)
 
@@ -62,6 +64,10 @@ class Conversation(models.Model):
 
     def list_of_humans(self):
         return ", ".join([participant.name() for participant in self.participants.filter(participant_type="user")])
+    
+    @property
+    def invite_link(self):
+        return reverse("chat:join_conversation", kwargs={"conversation_uuid": self.uuid})
 
 
 class Participant(models.Model):
@@ -71,6 +77,7 @@ class Participant(models.Model):
     )
 
     id = models.AutoField(primary_key=True)
+    is_temporary = models.BooleanField(default=False)
     participant_type = models.CharField(max_length=10, choices=PARTICIPANT_TYPE_CHOICES)
     user = models.ForeignKey(
         User,
@@ -86,7 +93,6 @@ class Participant(models.Model):
         blank=True,
         related_name="participant_bot",
     )
-    #summaries = models.ManyToManyField()
 
     def __str__(self):
         return f"Participant ({self.participant_type}) - {'User: ' + self.user.username if self.user else 'Bot: ' + self.bot.name}"

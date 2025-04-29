@@ -1,11 +1,11 @@
-from django_q.tasks import async_task, result
+from django_q.tasks import async_task, result, schedule
 from django.conf import settings
 from django.core.cache import cache
 
 from chat.llm import llm_conversation_title, llm_form_core_memories
 from chat.models import Conversation
-from chat.triggers import fallback_chime, mention, summarize, encourage, transition, resolve, chime_in, indirect, clear_fallback_task
-from chat.bot import generate_best_message
+from chat.strategies import fallback_chime, mention, summarize, encourage, transition, resolve, chime_in, indirect
+from chat.bot import synthesize, post_message
 from chat.helpers import estimate_delay
 from collections import defaultdict
 from django.utils import timezone
@@ -16,7 +16,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
-TRIGGER_TASKS = {
+STRATEGIES_TASKS = {
     "Mention": mention,
     "Indirect": indirect,
     "Summarize": summarize,
@@ -26,26 +26,25 @@ TRIGGER_TASKS = {
     "Chime-in": chime_in,
 }
 
-def update_conversation_titles():
-    conversations = Conversation.objects.all()
-
-    for conversation in conversations:
-        try:
-            if conversation.messages.last().timestamp > conversation.title_update_date or conversation.title is None:
-                llm_conversation_title(conversation)
-        except AttributeError:
-            pass
+def update_conversation_title(conversation_id):
+    conversation = Conversation.objects.get(id=conversation_id)
+    
+    try:
+        if conversation.messages.last().timestamp > conversation.title_update_date or conversation.title is None:
+            llm_conversation_title(conversation)
+    except AttributeError:
+        pass
 
     return True
 
 def run_strategies(conversation):
-    enabled_triggers = set(trigger.name for trigger in conversation.triggers.all())
+    enabled_strategy = set(strategy.name for strategy in conversation.strategies.all())
     task_ids = []
     responses = defaultdict(list)
     
-    for trigger in TRIGGER_TASKS.keys():
-        if trigger in enabled_triggers:
-            task = TRIGGER_TASKS[trigger]
+    for strategy in STRATEGIES_TASKS.keys():
+        if strategy in enabled_strategy:
+            task = STRATEGIES_TASKS[strategy]
             task_id = async_task(task, conversation)
             task_ids.append(task_id)
     
@@ -77,27 +76,24 @@ def synthesize_responses(task):
     conversation, responses_dict = task.result
     if responses_dict:
         for bot, results in responses_dict.items():
-            generate_best_message(conversation, bot, results)
+            synthesize(conversation, bot, results)
         return
     
     logger.info(f'[INFO] No responses returned for conversation {conversation.id}')
     
     delay = estimate_delay(conversation)
-    timestamp = timezone.now()
     
     logger.info(f'[INFO] Estimated delay: {delay}')
     
-    task_id = async_task(
-        fallback_chime,
-        conversation,
-        timestamp,
-        hook=clear_fallback_task,
-        group=f"chime_fallback_{conversation.id}",
+    schedule(
+        "chat.strategies.fallback_chime",
+        conversation.id,
+        timezone.now().isoformat(),
+        name=f"chime_fallback_{conversation.id}",
         schedule_type='O',
         minutes=delay / 60,  # Django Q uses minutes
     )
-    cache.set(f"fallback_chime_{conversation.id}", task_id, timeout=delay + 60)
-
+    
 def generate_core_memories(conversation):
     bots = [participant.bot for participant in conversation.participants.filter(participant_type="bot")]
     for bot in bots:

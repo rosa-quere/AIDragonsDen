@@ -54,6 +54,11 @@ def prompt_llm_messages(
             logger.error(f"SDKError on attempt {attempt}: {e}")
             return False
         except Exception as e:
+            if "database is locked" in str(e):
+                logger.warning(f"[{attempt}/{max_retries}] Database locked. Retrying in {retry_delay}s...")
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
+                    continue
             logger.error(f"Unhandled exception during LLM request (attempt {attempt}): {e}")
             return False
     
