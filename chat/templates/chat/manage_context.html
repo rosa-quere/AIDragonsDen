@@ -1,0 +1,16 @@
+<!-- chat/templates/chat/manage_context.html -->
+{% extends "chat/base.html" %}
+{% block content %}
+<div class="container">
+    <h2>Manage Conversation Context</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            {{ form.context.label_tag }}
+            {{ form.context }}
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{% url 'chat:setup_conversation' conversation.uuid %}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

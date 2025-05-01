@@ -12,6 +12,9 @@
         <a href="{% url 'chat:manage_strategies_for_conversation' conversation.uuid %}" class="btn btn-secondary">
             ⚙️ Manage Strategies
         </a>
+        <a href="{% url 'chat:manage_context' conversation.uuid %}" class="btn btn-secondary">
+            🧠 Manage Context
+        </a>
         <a href="{% url 'chat:invite_users' conversation.uuid %}" class="btn btn-secondary">
             🧑‍🤝‍🧑 Invite Users
         </a>

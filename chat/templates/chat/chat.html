@@ -43,6 +43,7 @@
               hx-target="#chat-messages"
               hx-swap="innerHTML"
               hx-trigger="submit"
+              hx-on::submit="document.getElementById('message-input').value = ''"
               hx-on::after-request="document.getElementById('message-input').value = ''">
             {% csrf_token %}
             <input type="text" id="message-input" name="message" class="form-control me-2 chat-input" autocomplete="off" placeholder="Type your message..." required>

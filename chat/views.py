@@ -7,7 +7,7 @@ from django.views.decorators.http import require_http_methods
 from django_q.models import Schedule
 from django_q.tasks import async_task, schedule
 
-from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm
+from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm, ManageContextForm
 from chat.llm import llm_conversation_title
 from chat.models import Conversation, Message, Participant, User, Strategy
 
@@ -40,6 +40,20 @@ def chat_new(request):
         schedule_type="I",
         minutes=2,
         name=f"update_conversation_title_{conversation.id}",
+    )
+    
+    schedule("chat.tasks.update_conversation_subtopics",
+        conversation.id,
+        schedule_type="I",
+        minutes=2,
+        name=f"update_conversation_subtopics_{conversation.id}",
+    )
+    
+    schedule("chat.tasks.update_conversation_summary",
+        conversation.id,
+        schedule_type="I",
+        minutes=2,
+        name=f"update_conversation_summary_{conversation.id}",
     )
     
     return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
@@ -211,6 +225,27 @@ def manage_strategies_for_conversation(request, conversation_uuid):
     }
 
     return render(request, "chat/manage_strategies.html", context)
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def manage_conversation_context(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+
+    if request.method == "POST":
+        form = ManageContextForm(request.POST, instance=conversation)
+        if form.is_valid():
+            conversation.save
+            return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
+    else:
+        form = ManageContextForm(instance=conversation)
+    
+    context = {
+        "conversation": conversation,
+        "form": form,
+        "version": settings.VERSION,
+    }
+
+    return render(request, "chat/manage_context.html", context)
 
 @login_required
 def invite_users(request, conversation_uuid):

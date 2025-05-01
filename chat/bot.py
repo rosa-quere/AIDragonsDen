@@ -2,7 +2,7 @@ import logging
 
 from django.conf import settings
 
-from chat.helpers import get_system_prompt
+from chat.helpers import get_system_prompt, strategies_to_prompt
 from chat.llm import prompt_llm_messages
 from chat.models import Message
 from chat.prompt_templates import prompts
@@ -63,8 +63,12 @@ def set_up(conversation, bot, override_turn=False):
 
     # Prepare the system message using the bot's prompt
     system_prompt = get_system_prompt(conversation, bot)
-
-    messages = [{"role": "system", "name": "system", "content": system_prompt}]
+    
+    if conversation.context:
+        messages = [{"role": "system", "name": "system", "content": conversation.context}]
+        messages.append({"role": "system", "name": "system", "content": system_prompt})
+    else:
+        messages = [{"role": "system", "name": "system", "content": system_prompt}]
 
     # Retrieve all messages for the conversation ordered by timestamp
     conversation_messages = Message.objects.filter(conversation=conversation).order_by("timestamp")
@@ -81,21 +85,29 @@ def set_up(conversation, bot, override_turn=False):
         )
     return messages
 
-def synthesize(conversation, bot, answers):
-    if len(answers)==1:
-        return post_message(conversation, bot, answers[0])
+def synthesize(conversation, bot, reply, strat_response):
     system_prompt = get_system_prompt(conversation, bot)
-    messages = [{"role": "system", "name": "system", "content": system_prompt}]
-    
-    for msg in answers:
-        role = "user"
-        messages.append(
-            {
-                "role": role,
-                "name": bot.name,
-                "content": msg,
-            }
-        )
+    if conversation.context:
+        messages = [{"role": "system", "name": "system", "content": conversation.context}]
+        messages.append({"role": "system", "name": "system", "content": system_prompt})
+    else:
+        messages = [{"role": "system", "name": "system", "content": system_prompt}]
+
+    role = "user"
+    messages.append(
+        {
+            "role": role,
+            "name": bot.name,
+            "content": reply,
+        }
+    )
+    messages.append(
+        {
+            "role": role,
+            "name": bot.name,
+            "content": strat_response,
+        }
+    )
     if messages is False:
         return False
     messages.append(
@@ -111,6 +123,25 @@ def synthesize(conversation, bot, answers):
         return False
     logger.info(f"[INFO][FINAL] Generating a new message as {bot.name}")
     return post_message(conversation, bot, bot_response)
+
+def generate_strategy_message(conversation, bot, strategies):
+    messages = set_up(conversation, bot)
+    if messages is False:
+        return False
+    strategies_list = strategies_to_prompt(strategies)
+    messages.append(
+        {
+            "role": "user",
+            "name": "System",
+            "content": prompts["combine_strategies"].format(bot_name=bot.name, strategies_list=strategies_list),
+        }
+    )
+    bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
+    if not check_message(bot_response, bot):
+        logger.info(f"[INFO][STRAT] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
+        return False
+
+    return bot_response
 
 def generate_message(conversation, bot, strategy, override_turn=False, post=False, **kwargs):
     messages = set_up(conversation, bot, override_turn)
@@ -132,30 +163,64 @@ def generate_message(conversation, bot, strategy, override_turn=False, post=Fals
         logger.info(f"[INFO][{strategy}] Generating a new message as {bot.name}: {bot_response}")
     return bot_response
 
-def generate_message_summarize(conversation, bot):
-    messages = set_up(conversation, bot)
-    if messages is False:
-        return False
-    messages.append(
-            {
-                "role": "user",
-                "name": "System",
-                "content": prompts["summarize"].format(bot_name=bot.name),
-            }
-        )
-
-    bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
-
-    if not check_message(bot_response, bot):
-        logger.info(f"[INFO][Summary] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
-        return False
-
-    logger.info(f"[INFO][Summary] Generating a new message as {bot.name}")
-    return bot_response
-
 def post_message(conversation, bot, msg):
     Message.objects.create(
         conversation=conversation,
         participant=conversation.participants.get(bot__id=bot.id),
         message=msg,
     )
+    
+    
+### OLD WORK ###
+
+# def synthesize(conversation, bot, answers):
+#     if len(answers)==1:
+#         return post_message(conversation, bot, answers[0])
+#     system_prompt = get_system_prompt(conversation, bot)
+#     messages = [{"role": "system", "name": "system", "content": system_prompt}]
+    
+#     for msg in answers:
+#         role = "user"
+#         messages.append(
+#             {
+#                 "role": role,
+#                 "name": bot.name,
+#                 "content": msg,
+#             }
+#         )
+#     if messages is False:
+#         return False
+#     messages.append(
+#         {
+#             "role": "user",
+#             "name": "System",
+#             "content": prompts["combine_answers"].format(bot_name=bot.name),
+#         }
+#     )
+#     bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
+#     if not check_message(bot_response, bot):
+#         logger.info(f"[INFO][FINAL] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
+#         return False
+#     logger.info(f"[INFO][FINAL] Generating a new message as {bot.name}")
+#     return post_message(conversation, bot, bot_response)
+
+# def generate_message_summarize(conversation, bot):
+#     messages = set_up(conversation, bot)
+#     if messages is False:
+#         return False
+#     messages.append(
+#             {
+#                 "role": "user",
+#                 "name": "System",
+#                 "content": prompts["summarize"].format(bot_name=bot.name),
+#             }
+#         )
+
+#     bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
+
+#     if not check_message(bot_response, bot):
+#         logger.info(f"[INFO][Summary] Failed 'check_message' for {bot.name}. Bot response: {bot_response}")
+#         return False
+
+#     logger.info(f"[INFO][Summary] Generating a new message as {bot.name}")
+#     return bot_response

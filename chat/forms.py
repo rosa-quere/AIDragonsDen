@@ -1,6 +1,6 @@
 from django import forms
 
-from chat.models import Bot, Strategy
+from chat.models import Bot, Strategy, Conversation
 
 
 class ManageBotsForm(forms.Form):
@@ -21,3 +21,14 @@ class ManageStrategiesForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         label="Select Strategies",
     )
+
+class ManageContextForm(forms.ModelForm):
+    class Meta:
+        model = Conversation
+        fields = ['context']
+        widgets = {
+            'context': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3, 
+                'placeholder': 'e.g., This conversation simulates a Dragon\'s Den scenario with three chatbot "Dragons" acting as expert investors and one user acting as the interviewed entrepreneur.'})
+        }

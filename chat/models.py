@@ -55,6 +55,9 @@ class Conversation(models.Model):
     strategies = models.ManyToManyField(Strategy, related_name="conversations", blank=True)
     summary = models.CharField(max_length=255, blank=True, null=True)
     summary_update_date = models.DateTimeField(auto_now=True)
+    summary_posted_date = models.DateTimeField(auto_now=True)
+    subtopics_updated_at = models.DateTimeField(auto_now=True)
+    context = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"Conversation {self.uuid} created on {self.creation_date}"

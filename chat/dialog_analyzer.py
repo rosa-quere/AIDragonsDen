@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.utils import timezone
 
 from chat.llm import prompt_llm_messages
 from chat.models import Message, SubTopic
@@ -58,6 +59,8 @@ def update_sub_topics_status(conversation):
             sub_topic.save()
             if created:
                 conversation.sub_topics.add(sub_topic)
+                conversation.subtopics_updated_at = timezone.now()
+                conversation.save()
         
         logger.info(f"[MUCA] Updating Sub-Topics and Statuses")
         return True
@@ -100,6 +103,7 @@ def update_accumulative_summary(conversation):
         return False
     else:
         conversation.summary = bot_response
+        conversation.summary_update_date = timezone.now()
         conversation.save()
         return True
 

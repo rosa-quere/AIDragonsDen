@@ -42,4 +42,5 @@ urlpatterns = [
     path("chat/<uuid:conversation_uuid>/bots/create/", views.create_bot, name="create_bot"),
     path('chat/<uuid:conversation_uuid>/invite', views.invite_users, name='invite_users'),
     path('chat/<uuid:conversation_uuid>/join/', views.join_conversation, name='join_conversation'),
+    path('chat/<uuid:conversation_uuid>/manage_context/', views.manage_conversation_context, name='manage_context'),
 ]
