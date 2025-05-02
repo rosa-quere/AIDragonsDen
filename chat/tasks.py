@@ -108,7 +108,7 @@ def generate_messages(conversation_id):
     Schedule.objects.create(
         name=f"chime_fallback_{conversation.id}",
         func="chat.strategies.fallback_chime",
-        args='conversation.id, timezone.now().isoformat()',
+        args=f"{conversation.id}, '{timezone.now().isoformat()}'",
         schedule_type='O',
         next_run=timezone.now() + timedelta(minutes=delay)
     )

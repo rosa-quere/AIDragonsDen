@@ -44,6 +44,18 @@ class SubTopic(models.Model):
     def __str__(self):
         return f"{self.name}, {self.status}"
 
+class Segment(models.Model):
+    discussion = models.ForeignKey("Conversation", on_delete=models.CASCADE, related_name='segments')
+    name = models.CharField(max_length=100, null=True, blank=True)
+    prompt = models.CharField(max_length=255)
+    order = models.PositiveIntegerField()
+    duration_minutes = models.PositiveIntegerField()
+    
+    def __str__(self):
+        return f"{self.name} ({self.duration_minutes} min)"
+
+    class Meta:
+        ordering = ['order']
 
 class Conversation(models.Model):
     id = models.AutoField(primary_key=True)
@@ -58,6 +70,8 @@ class Conversation(models.Model):
     summary_posted_date = models.DateTimeField(auto_now=True)
     subtopics_updated_at = models.DateTimeField(auto_now=True)
     context = models.TextField(blank=True, null=True)
+    duration = models.PositiveIntegerField(null=True, blank=True)
+    
 
     def __str__(self):
         return f"Conversation {self.uuid} created on {self.creation_date}"

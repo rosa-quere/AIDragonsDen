@@ -1,6 +1,7 @@
 from django import forms
+from django.forms import inlineformset_factory
 
-from chat.models import Bot, Strategy, Conversation
+from chat.models import Bot, Strategy, Conversation, Segment
 
 
 class ManageBotsForm(forms.Form):
@@ -22,13 +23,15 @@ class ManageStrategiesForm(forms.Form):
         label="Select Strategies",
     )
 
-class ManageContextForm(forms.ModelForm):
+class ManageConversationForm(forms.ModelForm):
     class Meta:
         model = Conversation
-        fields = ['context']
-        widgets = {
-            'context': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3, 
-                'placeholder': 'e.g., This conversation simulates a Dragon\'s Den scenario with three chatbot "Dragons" acting as expert investors and one user acting as the interviewed entrepreneur.'})
-        }
+        fields = ['context', 'duration']
+
+SegmentFormSet = inlineformset_factory(
+    Conversation,
+    Segment,
+    fields=('name', 'prompt', 'duration_minutes', 'order'),
+    extra=1,
+    can_delete=True
+)

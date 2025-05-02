@@ -48,7 +48,83 @@
             {% csrf_token %}
             <input type="text" id="message-input" name="message" class="form-control me-2 chat-input" autocomplete="off" placeholder="Type your message..." required>
             <button type="submit" class="btn chat-btn">Send</button>
+            <div id="speech-controls" class="ms-2">
+                <button type="button" class="btn btn-outline-secondary ms-2" onclick="startSpeechRecognition()">🎤</button>
+            <div>
         </form>
     </div>
 </div>
+<script>
+    {% comment %} function startSpeechRecognition() {
+        const input = document.getElementById('message-input');
+    
+        // Check for browser support
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Speech recognition not supported in this browser.");
+            return;
+        }
+    
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+    
+        recognition.start();
+    
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            input.value = transcript;
+    
+            // Submit the form automatically after recognition
+            document.getElementById('chat-form').requestSubmit();
+        };
+    
+        recognition.onerror = function(event) {
+            console.error('Speech recognition error:', event.error);
+            alert("Speech recognition error: " + event.error);
+        };
+    } {% endcomment %}
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    let finalTranscript = '';
+
+    recognition.onresult = function(event) {
+        finalTranscript = event.results[0][0].transcript;
+        document.getElementById('message-input').value = finalTranscript;
+    };
+
+    recognition.onend = function() {
+        if (finalTranscript.trim()) {
+            document.getElementById('chat-form').requestSubmit();
+        }
+        resetToMicButton();
+    };
+
+    function startSpeechRecognition() {
+        finalTranscript = '';
+        recognition.start();
+
+        // Replace with stop button
+        document.getElementById('speech-controls').innerHTML = `
+            <button class="btn btn-danger" onclick="stopSpeechRecognition()" id="stop-btn">🛑</button>
+        `;
+        
+    }
+
+    function stopSpeechRecognition() {
+        recognition.stop();
+    }
+
+    function resetToMicButton() {
+        document.getElementById('speech-controls').innerHTML = `
+            <button class="btn btn-outline-secondary" onclick="startSpeechRecognition()" id="start-btn">🎤</button>
+        `;
+    }
+
+    </script>
+    
 {% endblock content %}

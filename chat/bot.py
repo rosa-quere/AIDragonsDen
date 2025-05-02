@@ -2,7 +2,7 @@ import logging
 
 from django.conf import settings
 
-from chat.helpers import get_system_prompt, strategies_to_prompt
+from chat.helpers import get_system_prompt, strategies_to_prompt, detect_human_mention
 from chat.llm import prompt_llm_messages
 from chat.models import Message
 from chat.prompt_templates import prompts
@@ -11,30 +11,20 @@ logger = logging.getLogger(__name__)
 
 
 def check_turn(conversation, bot):
-    messages = []
-
-    for msg in conversation.messages.all():
-        role = "user" if msg.participant.participant_type == "user" else "assistant"
-        messages.append(
-            {
-                "role": role,
-                "name": msg.participant.user.username if msg.participant.participant_type == "user" else msg.participant.bot.name,
-                "content": msg.message,
-            }
-        )
+    messages = list(conversation.messages.all())
 
     # Human goes first
     if len(messages) == 0:
         return False
 
     if len(messages) > 0:
-        if messages[-1]["name"] == bot.name and not settings.DOUBLE_TEXTING:
+        if not settings.DOUBLE_TEXTING and messages[-1].participant.bot and messages[-1].participant.bot.name == bot.name:
             logger.info("[INFO] Bot has already replied")
             return False
 
         # Make sure the user has replied enough times; but allow answers after a user has replied
-        human_replies = [msg for msg in messages[-10:] if msg["role"] == "user"]
-        if len(human_replies) < settings.MIN_HUMAN_REPLIES_LAST_10 and len(messages) > settings.NEW_CHAT_GRACE and messages[-1]["role"] != "user":
+        human_replies = [msg for msg in messages[-10:] if msg.participant.user]
+        if len(human_replies) < settings.MIN_HUMAN_REPLIES_LAST_10 and len(messages) > settings.NEW_CHAT_GRACE and not messages[-1].participant.user:
             logger.info(f"[INFO] User has not replied enough times ({len(human_replies)} < {settings.MIN_HUMAN_REPLIES_LAST_10})")
             return False
 
@@ -42,6 +32,9 @@ def check_turn(conversation, bot):
         # if len(bot_replies) >= settings.MAX_THIS_BOT_REPLIES_LAST_10:
         #     logger.info(f"[INFO] Bot has replied too many times ({len(bot_replies)} >= {settings.MAX_THIS_BOT_REPLIES_LAST_10})")
         #     return False
+        if detect_human_mention(messages[-1]):
+            logger.info(f"[INFO] Human Mention detected, not bot turn")
+            return False
 
     return True
 

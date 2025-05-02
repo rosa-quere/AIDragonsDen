@@ -7,7 +7,7 @@ from django.views.decorators.http import require_http_methods
 from django_q.models import Schedule
 from django_q.tasks import async_task, schedule
 
-from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm, ManageContextForm
+from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm, ManageConversationForm, SegmentFormSet
 from chat.llm import llm_conversation_title
 from chat.models import Conversation, Message, Participant, User, Strategy
 
@@ -228,24 +228,28 @@ def manage_strategies_for_conversation(request, conversation_uuid):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def manage_conversation_context(request, conversation_uuid):
+def manage_conversation(request, conversation_uuid):
     conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
 
     if request.method == "POST":
-        form = ManageContextForm(request.POST, instance=conversation)
-        if form.is_valid():
-            conversation.save
+        form = ManageConversationForm(request.POST, instance=conversation)
+        formset = SegmentFormSet(request.POST, instance=conversation)
+        if form.is_valid() and formset.is_valid():
+            form.save()
+            formset.save()
             return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
     else:
-        form = ManageContextForm(instance=conversation)
+        form = ManageConversationForm(instance=conversation)
+        formset = SegmentFormSet(instance=conversation)
     
     context = {
         "conversation": conversation,
         "form": form,
+        'segment_formset': formset,
         "version": settings.VERSION,
     }
 
-    return render(request, "chat/manage_context.html", context)
+    return render(request, "chat/manage_conversation.html", context)
 
 @login_required
 def invite_users(request, conversation_uuid):
