@@ -4,7 +4,8 @@ from django.conf import settings
 
 from chat.prompt_templates import prompts, items
 from chat.llm import prompt_llm_messages
-from chat.models import Strategy, Participant
+from chat.models import Participant, Settings
+from django.utils import timezone
 
 import random
 
@@ -61,6 +62,26 @@ def judge_bot_determination(bot_response):
     else:
         return False
 
+def get_current_segment(conversation):
+    if not conversation.settings:
+        return None
+    
+    if not conversation.settings.segments.all():
+        return None
+    
+    segments = conversation.settings.segments.order_by('order')
+    elapsed_minutes = (timezone.now() - conversation.creation_date).total_seconds() / 60
+    cumulative_time = 0
+
+    for segment in segments:
+        cumulative_time += segment.duration_minutes
+        if elapsed_minutes < cumulative_time:
+            return segment
+
+    return segments.last()
+
+def has_participated(conversation, bot):
+    return conversation.messages.filter(participant__bot=bot).exists()
 
 def get_system_prompt(conversation, bot):
     system_prompt = prompts["bots_in_conversation"].format(

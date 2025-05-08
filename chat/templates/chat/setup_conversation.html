@@ -12,8 +12,8 @@
         <a href="{% url 'chat:manage_strategies_for_conversation' conversation.uuid %}" class="btn btn-secondary">
             ⚙️ Manage Strategies
         </a>
-        <a href="{% url 'chat:manage_conversation' conversation.uuid %}" class="btn btn-secondary">
-            🧠 Manage Context
+        <a href="{% url 'chat:manage_settings' conversation.uuid %}" class="btn btn-secondary">
+            🧠 Manage Settings
         </a>
         <a href="{% url 'chat:invite_users' conversation.uuid %}" class="btn btn-secondary">
             🧑‍🤝‍🧑 Invite Users
@@ -21,7 +21,7 @@
     </div>
 
     <div class="mt-4">
-        <a href="{% url 'chat:chat' conversation.uuid %}" class="btn btn-primary">
+        <a href="{% url 'chat:finalize_conversation_setup' conversation.uuid %}" class="btn btn-primary">
             ✅ Done — Go to Chat
         </a>
     </div>

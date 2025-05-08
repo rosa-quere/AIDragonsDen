@@ -81,7 +81,7 @@ def llm_conversation_title(conversation):
 
         bot_response = prompt_llm_messages(messages)
 
-        # Santized bot response with only ASCII characters
+        # Sanitized bot response with only ASCII characters
         bot_response_sanitized = bot_response
         bot_response_sanitized = bot_response_sanitized.replace('"', "")
         bot_response_sanitized = "".join([i if ord(i) < 128 else " " for i in bot_response_sanitized])
@@ -95,6 +95,27 @@ def llm_conversation_title(conversation):
         logger.error(f"Error generating conversation title: {e}")
         return conversation
 
+def llm_generate_segments(context, duration, format):
+    try:
+        messages = [
+            {
+                "role": "system",
+                "name": "system",
+                "content": prompts["generate_segments"].format(context=context, duration=duration, format=format),
+            }
+        ]
+
+        bot_response = prompt_llm_messages(messages)
+        
+        if bot_response.strip().startswith("```"):
+            lines = bot_response.strip().splitlines()
+            # Remove first and last lines (code block markers)
+            bot_response = "\n".join(lines[1:-1])
+        
+        return bot_response
+    except Exception as e:
+        logger.error(f"Error auto generating segments: {e}")
+        return context
 
 def llm_form_core_memories(conversation, bot):
     if len(conversation.participants.filter(participant_type="bot")) == 0:

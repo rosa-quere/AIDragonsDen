@@ -95,7 +95,7 @@ def update_accumulative_summary(conversation):
         {
             "role": "user",
             "name": "System",
-            "content": prompts["summarize"].format(names=participants),
+            "content": prompts["summarize"].format(names=participants, if_intro=""),
         }
     )
     bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)

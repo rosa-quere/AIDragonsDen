@@ -1,16 +1,19 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.contrib.auth import login
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django_q.models import Schedule
 from django_q.tasks import async_task, schedule
+from django.utils import timezone
+from django.forms import modelformset_factory
 
-from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm, ManageConversationForm, SegmentFormSet
-from chat.llm import llm_conversation_title
-from chat.models import Conversation, Message, Participant, User, Strategy
+from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm, CreateSegmentForm, ManageSettingsForm, CreateSettingsForm
+from chat.llm import llm_conversation_title, llm_generate_segments
+from chat.models import Conversation, Message, Participant, User, Strategy, Segment, Settings
 
+import json
 
 @login_required
 def index(request):
@@ -67,6 +70,17 @@ def setup_conversation(request, conversation_uuid):
     }
     return render(request, "chat/setup_conversation.html", context)
 
+@login_required
+def finalize_conversation_setup(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+
+    if conversation.count_old_participants==0:
+        # Update creation timestamp and count of participants
+        conversation.created_at = timezone.now()
+        conversation.count_old_participants = conversation.participants.count()
+        conversation.save()
+
+    return redirect('chat:chat', conversation_uuid=conversation.uuid)
 
 @login_required
 def chat(request, conversation_uuid=False):
@@ -228,28 +242,93 @@ def manage_strategies_for_conversation(request, conversation_uuid):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def manage_conversation(request, conversation_uuid):
+def manage_settings(request, conversation_uuid):
     conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
 
     if request.method == "POST":
-        form = ManageConversationForm(request.POST, instance=conversation)
-        formset = SegmentFormSet(request.POST, instance=conversation)
-        if form.is_valid() and formset.is_valid():
-            form.save()
-            formset.save()
+        form = ManageSettingsForm(request.POST)
+        if form.is_valid():
+            settings_name = form.cleaned_data["settings"]
+            print(settings_name)
+
+            settings_object = Settings.objects.get(name=settings_name)
+            conversation.settings = settings_object
+            conversation.save()
+
             return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
     else:
-        form = ManageConversationForm(instance=conversation)
-        formset = SegmentFormSet(instance=conversation)
-    
+        form = ManageSettingsForm(initial={"settings": conversation.settings})
+
+    # Create the context to pass to the template
     context = {
-        "conversation": conversation,
+        "conversations": Conversation.objects.all(),
         "form": form,
-        'segment_formset': formset,
+        "conversation": conversation,
         "version": settings.VERSION,
     }
 
-    return render(request, "chat/manage_conversation.html", context)
+    return render(request, "chat/manage_settings.html", context)
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def create_settings(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+    SegmentFormSet = modelformset_factory(Segment, form=CreateSegmentForm, extra=3)
+    SegmentFormSetEmpty = modelformset_factory(Segment, form=CreateSegmentForm, extra=0)
+    settings_form = CreateSettingsForm(request.POST or None)
+    segment_formset = None
+
+    if request.method == "POST":
+        if 'generate_segments' in request.POST:
+            segment_data = generate_segments(request)
+            segment_formset = SegmentFormSet(queryset=Segment.objects.none(), initial=segment_data)
+        elif 'save_all' in request.POST:
+            segment_formset = SegmentFormSet(request.POST, queryset=Segment.objects.none())
+            if settings_form.is_valid() and segment_formset.is_valid():
+                conv_settings = settings_form.save()
+                segments = segment_formset.save(commit=False)
+                for segment in segments:
+                    segment.settings = conv_settings
+                    segment.save()
+                conversation.settings = conv_settings
+                conversation.save()
+                print("Correctly saved")
+            
+                return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
+            else:
+                print(settings_form.errors)
+                print(segment_formset.errors)
+    else:
+        settings_form = CreateSettingsForm()
+        segment_formset = SegmentFormSetEmpty(queryset=Segment.objects.none())
+    
+    context = {
+        "conversation": conversation,
+        "form": settings_form,
+        'segment_formset': segment_formset,
+        "version": settings.VERSION,
+    }
+
+    return render(request, "chat/create_settings.html", context)
+
+@login_required
+@require_POST
+def generate_segments(request):
+    context_text = request.POST.get("context", "").strip()
+    duration_text = request.POST.get("duration", "").strip()
+
+    if not context_text:
+        return HttpResponseBadRequest("Context is required.")
+    if not duration_text:
+        return HttpResponseBadRequest("Duration is required.")
+
+    segments_format = [{"name": "Introduction", "prompt": "Start with intros...", "duration_minutes": 5, "order": 0},
+        {"name": "Main Discussion", "prompt": "Deep dive into the topic...", "duration_minutes": 15, "order": 1},
+        {"name": "Wrap-up", "prompt": "Summarize and conclude", "duration_minutes...": 5, "order": 2}]
+    
+    segments_data = json.loads(llm_generate_segments(context_text, duration_text, segments_format))
+
+    return segments_data
 
 @login_required
 def invite_users(request, conversation_uuid):

@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from chat.models import Bot, Strategy, Conversation, Segment
+from chat.models import Bot, Strategy, Conversation, Segment, Settings
 
 
 class ManageBotsForm(forms.Form):
@@ -23,15 +23,25 @@ class ManageStrategiesForm(forms.Form):
         label="Select Strategies",
     )
 
-class ManageConversationForm(forms.ModelForm):
+class ManageSettingsForm(forms.Form):
+    settings = forms.ModelChoiceField(
+        queryset=Settings.objects.all(),
+        widget=forms.Select,
+        label="Select Conversation Settings"
+    )
+    
+class CreateSettingsForm(forms.ModelForm):
     class Meta:
-        model = Conversation
-        fields = ['context', 'duration']
+        model = Settings
+        fields = ['name', 'context', 'duration']
+    
+    def clean_name(self):
+        name = self.cleaned_data['name']
+        if Settings.objects.filter(name=name).exists():
+            raise forms.ValidationError("A Settings instance with this name already exists.")
+        return name
 
-SegmentFormSet = inlineformset_factory(
-    Conversation,
-    Segment,
-    fields=('name', 'prompt', 'duration_minutes', 'order'),
-    extra=1,
-    can_delete=True
-)
+class CreateSegmentForm(forms.ModelForm):
+    class Meta:
+        model = Segment
+        fields = ['name', 'prompt', 'duration_minutes', 'order', 'settings']

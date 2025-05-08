@@ -42,5 +42,8 @@ urlpatterns = [
     path("chat/<uuid:conversation_uuid>/bots/create/", views.create_bot, name="create_bot"),
     path('chat/<uuid:conversation_uuid>/invite', views.invite_users, name='invite_users'),
     path('chat/<uuid:conversation_uuid>/join/', views.join_conversation, name='join_conversation'),
-    path('chat/<uuid:conversation_uuid>/manage_conversation/', views.manage_conversation, name='manage_conversation'),
+    path('chat/<uuid:conversation_uuid>/manage_settings/', views.manage_settings, name='manage_settings'),
+    path('chat/<uuid:conversation_uuid>/settings/create/', views.create_settings, name="create_settings"),
+    path('chat/<uuid:conversation_uuid>/finalize/', views.finalize_conversation_setup, name='finalize_conversation_setup'),
+    path("chat/<uuid:conversation_uuid>/generate_segments/", views.generate_segments, name="generate_segments"),
 ]

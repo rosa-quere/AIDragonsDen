@@ -45,9 +45,9 @@ class SubTopic(models.Model):
         return f"{self.name}, {self.status}"
 
 class Segment(models.Model):
-    discussion = models.ForeignKey("Conversation", on_delete=models.CASCADE, related_name='segments')
+    settings = models.ForeignKey("Settings", null=True, blank=True, on_delete=models.CASCADE, related_name='segments')
     name = models.CharField(max_length=100, null=True, blank=True)
-    prompt = models.CharField(max_length=255)
+    prompt = models.TextField(blank=True, null=True)
     order = models.PositiveIntegerField()
     duration_minutes = models.PositiveIntegerField()
     
@@ -57,6 +57,14 @@ class Segment(models.Model):
     class Meta:
         ordering = ['order']
 
+class Settings(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    context = models.TextField(blank=True, null=True)
+    duration = models.PositiveIntegerField(null=True, blank=True)
+    
+    def __str__(self):
+        return self.name
+    
 class Conversation(models.Model):
     id = models.AutoField(primary_key=True)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False)
@@ -64,13 +72,13 @@ class Conversation(models.Model):
     creation_date = models.DateTimeField(auto_now_add=True)
     title_update_date = models.DateTimeField(auto_now=True)
     participants = models.ManyToManyField("Participant", related_name="conversations")
+    count_old_participants = models.PositiveIntegerField(default=0)
     strategies = models.ManyToManyField(Strategy, related_name="conversations", blank=True)
     summary = models.CharField(max_length=255, blank=True, null=True)
     summary_update_date = models.DateTimeField(auto_now=True)
     summary_posted_date = models.DateTimeField(auto_now=True)
     subtopics_updated_at = models.DateTimeField(auto_now=True)
-    context = models.TextField(blank=True, null=True)
-    duration = models.PositiveIntegerField(null=True, blank=True)
+    settings = models.ForeignKey(Settings, null=True, blank=True, on_delete=models.SET_NULL, related_name="conversations")
     
 
     def __str__(self):

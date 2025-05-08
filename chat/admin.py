@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from chat.models import Bot, Conversation, CoreMemory, LLMRequest, Message, Participant, Strategy, SubTopic
+from chat.models import Bot, Conversation, CoreMemory, LLMRequest, Message, Participant, Strategy, SubTopic, Segment, Settings
 
 
 class CoreMemoryInline(admin.TabularInline):
@@ -24,3 +24,5 @@ admin.site.register(Strategy)
 admin.site.register(SubTopic)
 admin.site.register(LLMRequest, LLMRequestAdmin)
 admin.site.register(CoreMemory)
+admin.site.register(Segment)
+admin.site.register(Settings)
