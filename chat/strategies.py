@@ -3,8 +3,8 @@ import numpy as np
 
 from django.conf import settings
 from django.utils import timezone
-from chat.bot import generate_message
-from chat.helpers import detect_mention, get_last_active_bot, detect_question, check_waiting, detect_human_mention, get_random_bot
+from chat.bot import generate_message, check_turn_indirect
+from chat.helpers import detect_mention, detect_question, check_waiting, detect_human_mention, get_random_bot
 from chat.dialog_analyzer import extract_utterance_features, extract_participant_features, get_active_participants
 from chat.models import Message, Conversation, Strategy
 from datetime import datetime
@@ -38,28 +38,32 @@ def indirect(conversation):
     if not last_message:
         return False
     
-    bots = [participant.bot for participant in conversation.participants.filter(participant_type="bot")]
-    random.shuffle(bots)
-    answers = {}
+    #bots = [participant.bot for participant in conversation.participants.filter(participant_type="bot")]
+    #random.shuffle(bots)
+    bot = get_random_bot(conversation)
+    
+    if last_message.participant.bot:
+        # if check_turn_indirect(conversation, bot):
+        #     response = generate_message(conversation, bot, "indirect")
+        #     return {bot: response} if response else False
+        return False
     
     if detect_human_mention(last_message):
         logger.info(f"[INFO] Human Mention detected, not bot turn")
         return False
     
-    if detect_question(last_message):
-        if last_message.participant.bot:
-            bots.remove(last_message.participant.bot)
-        for bot in bots[:settings.MAX_INDIRECT_ANSWERS]:
-            response = generate_message(conversation, bot, "indirect")
-            if response:
-                answers[bot] = response
-        return answers if answers else False
+    # if detect_question(last_message):
+    #     if last_message.participant.bot:
+    #         bots.remove(last_message.participant.bot)
+    #     for bot in bots[:settings.MAX_INDIRECT_ANSWERS]:
+    #         response = generate_message(conversation, bot, "indirect")
+    #         if response:
+    #             answers[bot] = response
+    #     return answers if answers else False
     if last_message.participant.user:
-        bot = random.choice(bots)
         response = generate_message(conversation, bot, "indirect")
-        if response:
-            answers[bot] = response
-            return answers
+        return {bot: response} if response else False
+    
     return False
 
 def chime_in_silence(conversation):
@@ -133,7 +137,7 @@ def encourage(conversation):
                 lurkers.append(user.user.username if user.user else user.bot.name)
 
     if lurkers and check_waiting(conversation, strat_object.triggered_at):
-        logger.info(f"[INFO] Encouraging lurkers: {[user.user.username if user.user else user.bot.name for user in lurkers]}")
+        logger.info(f"[INFO] Encouraging lurkers: {lurkers}")
         strat_object.triggered_at = timezone.now()
         strat_object.save()
         return {"lurkers": ", ".join(lurkers)}

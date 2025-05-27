@@ -1,5 +1,5 @@
-from django_q.tasks import async_task
 from django_q.models import Schedule
+from django.conf import settings
 
 from chat.llm import llm_conversation_title, llm_form_core_memories
 from chat.models import Conversation
@@ -7,11 +7,14 @@ from chat.strategies import mention, summarize, encourage, transition, resolve, 
 from chat.bot import synthesize, post_message, generate_strategy_message
 from chat.helpers import estimate_delay, get_random_bot
 from chat.dialog_analyzer import update_sub_topics_status, update_accumulative_summary
+from chat.evaluation import engt_words_conv, engt_words_utt, evenness
 from django.utils import timezone
 from datetime import timedelta
 
 import random
 import logging
+import os
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +58,38 @@ def update_conversation_summary(conversation_id):
 
     return True
 
+def update_evaluation_metrics(conversation_id):
+    conversation = Conversation.objects.get(id=conversation_id)
+    try:
+        if conversation.messages.count() != 0:
+            metrics = {
+                "Average number of words per conversation: ": engt_words_conv(conversation),
+                "Average number of words per utterance: ": engt_words_utt(conversation),
+                "Evenness: ": evenness(conversation),
+            }
+            logger.info(f"[INFO] Updated metrics: {metrics}")
+
+            # Save to a local file
+            file_path = os.path.join(settings.BASE_DIR, f"metrics_{conversation.id}.json")
+            with open(file_path, "w") as f:
+                json.dump(metrics, f)
+            
+            logger.info(f"[INFO] Wrote metrics to file")
+    except AttributeError as e:
+        logger.info(f"[ERROR] Failed to update metrics: {e}")
+        pass
+    except Exception as e:
+        logger.info(f"[ERROR] Unexpected error updating metrics: {e}")
+        pass
+
+    return True
+
 def reply(conversation):
     response = mention(conversation)
-    logger.info(f"[IFNO] Mention response: {response}")
+    logger.info(f"[INFO] Mention response: {response}")
     if not response:
         response = indirect(conversation)
-        logger.info(f"[IFNO] Indirect response: {response}")
+        logger.info(f"[INFO] Indirect response: {response}")
     return response if response else False
 
 def detect_triggers(conversation):
@@ -90,7 +119,7 @@ def generate_messages(conversation_id):
     if responses:
         for bot, response_reply in responses.items():
             if response_strat and bot is random_bot:
-                async_task(synthesize, conversation, bot, response_reply, response_strat)
+                synthesize(conversation, bot, response_reply, response_strat)
             else:
                 post_message(conversation, bot, response_reply)
         return

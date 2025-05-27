@@ -25,11 +25,11 @@ def get_last_active_bot(conversation):
         return [participant.bot for participant in conversation.participants.filter(participant_type="bot")][0]
         
 def get_random_bot(conversation):
-    last_message = conversation.messages.filter(participant__participant_type="bot").order_by("timestamp").last()
-    if last_message:
-        return last_message.participant.bot 
-    else:
-        return random.choice([participant.bot for participant in conversation.participants.filter(participant_type="bot")])
+    # last_message = conversation.messages.filter(participant__participant_type="bot").order_by("timestamp").last()
+    # if last_message:
+    #     return last_message.participant.bot 
+    # else:
+    return random.choice([participant.bot for participant in conversation.participants.filter(participant_type="bot")])
 
 def detect_mention(bot_name, messages):
     mentionned = [msg for msg in messages if f"@{bot_name.lower()}" in msg.message.lower()]

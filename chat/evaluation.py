@@ -5,21 +5,24 @@ logger = logging.getLogger(__name__)
 
 def engt_words_conv(conversation):
     """Average number of words exchanged per conversation"""
-    messages = conversation.messages.filter(conversation=conversation).include(participant_type="bot")
+    logger.info(f"[INFO] Calculating words per conversation...")
+    messages = conversation.messages.filter(participant__participant_type="bot")
     word_count = [len(msg.message.split()) for msg in messages]
-    return np.sum(word_count)
+    return int(np.sum(word_count))
 
 def engt_words_utt(conversation):
     """Average number of words per utterance """
-    messages = conversation.messages.filter(conversation=conversation).include(participant_type="bot")
+    logger.info(f"[INFO] Calculating words per utterance...")
+    messages = conversation.messages.filter(participant__participant_type="bot")
     word_count = [len(msg.message.split()) for msg in messages]
-    return np.mean(word_count)
+    return float(np.mean(word_count))
 
 def evenness(conversation):
     """Evenness is assessed by calculating the sample standard deviation 
     (STD) of the word count input by each participant, expressed as a percentage of the mean."""
+    logger.info(f"[INFO] Calculating evenenss...")
     word_counts = {}
-    messages = conversation.messages.filter(conversation=conversation)
+    messages = conversation.messages.all()
     for msg in messages:
         participant = msg.participant
         if not participant:
@@ -34,7 +37,7 @@ def evenness(conversation):
     mean = np.mean(counts)
 
     evenness = (std / mean) * 100
-    return evenness
+    return float(evenness)
     
 
 def consensus(conversation):

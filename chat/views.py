@@ -59,6 +59,13 @@ def chat_new(request):
         name=f"update_conversation_summary_{conversation.id}",
     )
     
+    schedule("chat.tasks.update_evaluation_metrics",
+        conversation.id,
+        schedule_type="I",
+        minutes=5,
+        name=f"update_evaluation_metrics_{conversation.id}",
+    )
+    
     return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
 
 @login_required

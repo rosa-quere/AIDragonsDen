@@ -2,7 +2,7 @@ import logging
 
 from django.conf import settings
 
-from chat.helpers import get_system_prompt, strategies_to_prompt, detect_human_mention, get_current_segment, has_participated
+from chat.helpers import get_system_prompt, strategies_to_prompt, judge_bot_determination, get_current_segment, has_participated, detect_human_mention
 from chat.llm import prompt_llm_messages
 from chat.models import Message
 from chat.prompt_templates import prompts, items
@@ -35,6 +35,37 @@ def check_turn(conversation, bot):
 
     return True
 
+def check_turn_indirect(conversation, bot):
+    last_message = conversation.messages.order_by("timestamp").last()
+    system_prompt = get_system_prompt(conversation, bot)
+    messages = [{"role": "system", "name": "system", "content": system_prompt}]
+    
+    if conversation.settings and conversation.settings.context:
+        messages.append({"role": "system", "name": "system", "content": conversation.settings.context})
+        
+    segment = get_current_segment(conversation)
+    if segment:
+        logger.info(f'[INFO] Segment: {segment.name}')
+        messages.append({"role": "system", "name": "system", "content": segment.prompt})
+        
+    messages.append({
+                "role": "user" if last_message.participant.participant_type == "user" else "assistant",
+                "name": last_message.participant.user.username if last_message.participant.participant_type == "user" else last_message.participant.bot.name,
+                "content": last_message.message,
+            })
+    
+    if messages is False:
+        return False
+    messages.append(
+        {
+            "role": "user",
+            "name": "System",
+            "content": prompts["is_turn"].format(bot_name=bot.name),
+        }
+    )
+    bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
+    return judge_bot_determination(bot_response)
+    
 
 def check_message(new_message, bot):
     # Self-Referential @mention
@@ -55,13 +86,13 @@ def set_up(conversation, bot, override_turn=False):
     system_prompt = get_system_prompt(conversation, bot)
     messages = [{"role": "system", "name": "system", "content": system_prompt}]
     
+    if conversation.settings and conversation.settings.context:
+        messages.append({"role": "system", "name": "system", "content": conversation.settings.context})
+        
     segment = get_current_segment(conversation)
     if segment:
         logger.info(f'[INFO] Segment: {segment.name}')
-        messages.insert(0, {"role": "system", "name": "system", "content": segment.prompt})
-        
-    if conversation.settings and conversation.settings.context:
-        messages.insert(0, {"role": "system", "name": "system", "content": conversation.settings.context})
+        messages.append({"role": "system", "name": "system", "content": segment.prompt})
         
     # Retrieve all messages for the conversation ordered by timestamp
     conversation_messages = Message.objects.filter(conversation=conversation).order_by("timestamp")
@@ -83,13 +114,13 @@ def synthesize(conversation, bot, reply, strat_response):
     system_prompt = get_system_prompt(conversation, bot)
     messages = [{"role": "system", "name": "system", "content": system_prompt}]
     
+    if conversation.settings and conversation.settings.context:
+        messages.append({"role": "system", "name": "system", "content": conversation.settings.context})
+    
     segment = get_current_segment(conversation)
     if segment:
         logger.info(f'[INFO] Segment: {segment.name}')
-        messages.insert(0, {"role": "system", "name": "system", "content": segment.prompt})
-        
-    if conversation.settings and conversation.settings.context:
-        messages.insert(0, {"role": "system", "name": "system", "content": conversation.settings.context})
+        messages.append({"role": "system", "name": "system", "content": segment.prompt})
 
     role = "user"
     messages.append(
@@ -125,6 +156,10 @@ def synthesize(conversation, bot, reply, strat_response):
 def generate_strategy_message(conversation, bot, strategies):
     messages = set_up(conversation, bot)
     if messages is False:
+        return False
+    last_message = conversation.messages.order_by("timestamp").last()
+    if detect_human_mention(last_message):
+        logger.info(f"[INFO] Human Mention detected, not bot turn")
         return False
     strategies_list = strategies_to_prompt(strategies)
     messages.append(
