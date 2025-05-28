@@ -23,9 +23,12 @@ urlpatterns = [
     ),
     path(
         "chat/<uuid:conversation_uuid>/title",
-        views.conversation_title,
-        name="conversation_title",
+        views.load_conversation_title,
+        name="load_conversation_title",
     ),
+    path('sidebar/conversations/', 
+         views.load_sidebar_conversations, 
+         name='load_sidebar_conversations'),
     path(
         "chat/<uuid:conversation_uuid>/manage_bots/",
         views.manage_bots_in_conversation,

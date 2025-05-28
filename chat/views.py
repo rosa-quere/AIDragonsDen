@@ -130,10 +130,15 @@ def load_messages(request, conversation_uuid):
 
 
 @login_required
-def conversation_title(request, conversation_uuid):
+def load_conversation_title(request, conversation_uuid):
     conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+    #return HttpResponse(llm_conversation_title(conversation))
+    return render(request, "chat/partials/conversation_title.html", {"conversation": conversation})
 
-    return HttpResponse(llm_conversation_title(conversation))
+@login_required
+def load_sidebar_conversations(request):
+    conversations = Conversation.objects.all().order_by('-creation_date')  # Adjust queryset as needed
+    return render(request, 'chat/partials/sidebar_conversations.html', {'conversations': conversations})
 
 
 @login_required

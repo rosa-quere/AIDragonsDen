@@ -1,0 +1,6 @@
+<div id="conversation-title"
+     hx-get="{% url 'chat:load_conversation_title' conversation.uuid %}"
+     hx-trigger="load, every 60s"
+     hx-swap="outerHTML">
+    <h1>{{ conversation.title }}</h1>
+</div>

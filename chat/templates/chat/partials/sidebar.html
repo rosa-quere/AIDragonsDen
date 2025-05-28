@@ -3,23 +3,12 @@
     <span class="text-center version">{{ version }}</span>
 
     {% if user.is_authenticated %}
-    <p class="sidebar-heading">Conversations</p>
-    <a href="{% url 'chat:chat_new' %}" style="margin: 15px;" class="nav-item btn btn-light">New</a>
-    <ul class="nav flex-column">
-        {% for conversation in conversations %}
-            <li class="nav-item">
-                <a class="nav-link" href="/chat/{{ conversation.uuid }}">
-                    <span>{{ conversation.title }}</span><br><span class="sidebar-timestamp">{{ conversation.creation_date }}</span>
-                </a>
-            </li>
-        {% empty %}
-            <li class="nav-item">
-                <span class="nav-link">No conversations available</span>
-            </li>
-        {% endfor %}
-    </ul>
-
-    <a href="{% url 'chat:chat_clear' %}" style="margin: 15px;" class="nav-item btn btn-danger">Clear Chats</a>
+    <div id="sidebar-conversations"
+         hx-get="{% url 'chat:load_sidebar_conversations' %}"
+         hx-trigger="load, every 60s"
+         hx-swap="innerHTML">
+        {% include "chat/partials/sidebar_conversations.html" %}
+    </div>
 
     <hr>
     

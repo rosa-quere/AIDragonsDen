@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container">
     <div class="text-center mb-3">
-        <h1>{{ conversation.title }}</h1>
+        {% include "chat/partials/conversation_title.html"%}
         <p>Created on {{ conversation.creation_date }}</p>
         <div class="d-flex flex-wrap justify-content-center" id="participants-list">
             {% for participant in participants %}
