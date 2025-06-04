@@ -4,8 +4,9 @@ from django.conf import settings
 
 from chat.prompt_templates import prompts, items
 from chat.llm import prompt_llm_messages
-from chat.models import Participant, Settings
+from chat.models import Participant
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 
 import random
 
@@ -31,9 +32,8 @@ def get_random_bot(conversation):
     # else:
     return random.choice([participant.bot for participant in conversation.participants.filter(participant_type="bot")])
 
-def detect_mention(bot_name, messages):
-    mentionned = [msg for msg in messages if f"@{bot_name.lower()}" in msg.message.lower()]
-    return False if len(mentionned)==0 else mentionned
+def detect_mention(bot_name, message):
+    return True if f"@{bot_name.lower()}" in message.message.lower() else False
 
 def detect_human_mention(msg):
     humans = [participant.user.username for participant in Participant.objects.filter(participant_type="user")]
@@ -70,7 +70,8 @@ def get_current_segment(conversation):
         return None
     
     segments = conversation.settings.segments.order_by('order')
-    elapsed_minutes = (timezone.now() - conversation.creation_date).total_seconds() / 60
+    first_message = conversation.messages.order_by("timestamp").first()
+    elapsed_minutes = (timezone.now() - first_message.timestamp).total_seconds() / 60
     cumulative_time = 0
 
     for segment in segments:
@@ -89,7 +90,6 @@ def get_system_prompt(conversation, bot):
         list_of_bots=conversation.list_of_bots(),
         list_of_humans=conversation.list_of_humans(),
         bot_prompt=bot.prompt,
-        core_memories=bot.get_core_memories_for_prompt(n_last_memories=settings.MAX_CORE_MEMORIES_PER_PROMPT),
     )
 
     return system_prompt
@@ -110,3 +110,34 @@ def check_waiting(conversation, triggered_at):
         return False
     waiting_timestamp = conversation.messages.order_by("-timestamp")[settings.WAITING_MESSAGE_NB].timestamp
     return triggered_at <= waiting_timestamp
+
+import re
+
+def render_summary(summary):
+    """
+    Converts a dense summary string into a clean HTML format using <strong> and <ul><li> tags.
+    """
+    if not summary:
+        return ""
+    logger.info(f"[INFO] Original summary: {summary}")
+    # Split by person sections using bold markdown pattern like **Name:**
+    sections = re.split(r'\*\*(.+?)\*\*:', summary.strip())
+    html_parts = []
+
+    for i in range(1, len(sections), 2):
+        name = sections[i].strip()
+        content = sections[i + 1].strip()
+
+        html_parts.append(f"<strong>{name}:</strong>")
+        html_parts.append("<ul>")
+        # Extract bullet points (that start with `-`)
+        items = re.findall(r'-\s*(.*?)(?=\s*-\s*|$)', content, re.DOTALL)
+        for item in items:
+            clean_item = item.strip()
+            if clean_item:
+                html_parts.append(f"<li>{clean_item}</li>")
+        html_parts.append("</ul>")
+
+    rendered = mark_safe("\n".join(html_parts))
+    logger.info(f"[INFO] Rendered summary: {rendered}")
+    return rendered

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 VERSION = "0.1.1"
@@ -176,10 +177,6 @@ MIN_HUMAN_REPLIES_LAST_10 = 2
 
 MAX_INDIRECT_ANSWERS = 2
 
-# Core Memories
-BUILD_CORE_MEMORIES = False
-MAX_CORE_MEMORIES_PER_PROMPT = 50
-
 # Dialog Analyzer
 SHORT_TERM_CONTEXT = 8
 LONG_TERM_CONTEXT = 10 * SHORT_TERM_CONTEXT
@@ -192,20 +189,45 @@ STAGNATION_PERIOD = 8
 WAITING_MESSAGE_NB = 5
 SILENCE_SECONDS_THRESHOLD = 120
 REPETITION_THRESHOLD = 3
+EVALUATIONS = 5
 
 # Logging
 
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    'filters': {
+        'skip_unecessary_requests': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': lambda record: '/title' not in record.getMessage() 
+                and '_message' not in record.getMessage() 
+                and '/sidebar' not in record.getMessage(),
+        },
+    },
     "handlers": {
         "console": {
             "level": "INFO",
+            'filters': ['skip_unecessary_requests'],
             "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django.server": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
         },
     },
     "root": {
         "handlers": ["console"],
         "level": "INFO",
+        'propagate': False,
     },
 }
+
+if 'test' in sys.argv:
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": True,  # Disables all logging during tests
+    }
+

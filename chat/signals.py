@@ -29,12 +29,8 @@ def on_message_created(sender, instance, created, **kwargs):
         for task in chime_tasks:
             task.delete()
         logger.info(f"[INFO] Cancelled fallback chime task for conversation {conversation.id} due to new message")
-    
-    # fallback_cache_key = f"fallback_chime_{conversation.id}"
-    # if cache.get(fallback_cache_key):
-    #     cache.delete(fallback_cache_key)
-    #     logger.info(f"[INFO] Cancelled fallback chime task for conversation {conversation.id} due to new message")
 
     # Trigger a new async task
     logger.info(f"[INFO] Triggering new generate_messages task for {conversation.uuid}")
     async_task("chat.tasks.generate_messages", conversation.id, task_name=schedule_name)
+    async_task("chat.tasks.update_conversation_subtopics", conversation.id)

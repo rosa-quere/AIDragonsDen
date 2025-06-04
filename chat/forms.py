@@ -1,7 +1,6 @@
 from django import forms
-from django.forms import inlineformset_factory
 
-from chat.models import Bot, Strategy, Conversation, Segment, Settings
+from chat.models import Bot, Strategy, Segment, Settings
 
 
 class ManageBotsForm(forms.Form):

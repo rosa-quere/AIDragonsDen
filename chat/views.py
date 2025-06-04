@@ -1,19 +1,23 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponseBadRequest
 from django.contrib.auth import login
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
 from django_q.models import Schedule
-from django_q.tasks import async_task, schedule
+from django_q.tasks import schedule
 from django.utils import timezone
 from django.forms import modelformset_factory
 
 from chat.forms import ManageBotsForm, ManageStrategiesForm, CreateBotForm, CreateSegmentForm, ManageSettingsForm, CreateSettingsForm
-from chat.llm import llm_conversation_title, llm_generate_segments
+from chat.llm import llm_generate_subtopics, llm_generate_segments
 from chat.models import Conversation, Message, Participant, User, Strategy, Segment, Settings
+from chat.evaluation import get_metrics
+from chat.helpers import render_summary
 
 import json
+import markdown
+from django.utils.safestring import mark_safe
 
 @login_required
 def index(request):
@@ -45,12 +49,12 @@ def chat_new(request):
         name=f"update_conversation_title_{conversation.id}",
     )
     
-    schedule("chat.tasks.update_conversation_subtopics",
-        conversation.id,
-        schedule_type="I",
-        minutes=2,
-        name=f"update_conversation_subtopics_{conversation.id}",
-    )
+    # schedule("chat.tasks.update_conversation_subtopics",
+    #     conversation.id,
+    #     schedule_type="I",
+    #     minutes=0.25,
+    #     name=f"update_conversation_subtopics_{conversation.id}",
+    # )
     
     schedule("chat.tasks.update_conversation_summary",
         conversation.id,
@@ -139,6 +143,19 @@ def load_conversation_title(request, conversation_uuid):
 def load_sidebar_conversations(request):
     conversations = Conversation.objects.all().order_by('-creation_date')  # Adjust queryset as needed
     return render(request, 'chat/partials/sidebar_conversations.html', {'conversations': conversations})
+
+@login_required
+def load_sidebar_metrics(request, conversation_uuid):
+    conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
+    rendered_summary = mark_safe(markdown.markdown(conversation.summary)) if conversation.summary else None
+    context = {
+        "conversation": conversation,
+        "metrics": get_metrics(conversation),
+        "subtopics": conversation.sub_topics.all(),
+        #"summary": render_summary(conversation.summary),
+        "summary": rendered_summary,
+    }
+    return render(request, "chat/partials/metrics.html", context)
 
 
 @login_required
@@ -266,6 +283,7 @@ def manage_settings(request, conversation_uuid):
             settings_object = Settings.objects.get(name=settings_name)
             conversation.settings = settings_object
             conversation.save()
+            llm_generate_subtopics(conversation)
 
             return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
     else:
@@ -304,12 +322,9 @@ def create_settings(request, conversation_uuid):
                     segment.save()
                 conversation.settings = conv_settings
                 conversation.save()
-                print("Correctly saved")
+                llm_generate_subtopics(conversation)
             
                 return redirect("chat:setup_conversation", conversation_uuid=conversation.uuid)
-            else:
-                print(settings_form.errors)
-                print(segment_formset.errors)
     else:
         settings_form = CreateSettingsForm()
         segment_formset = SegmentFormSetEmpty(queryset=Segment.objects.none())
@@ -358,9 +373,6 @@ def chat_clear(request):
 
     for conversation in conversations:
         Schedule.objects.filter(name=f"generate_messages_{conversation.uuid}").delete()
-
-        if settings.BUILD_CORE_MEMORIES:
-            async_task("chat.tasks.generate_core_memories", conversation)
         
         # Remove and delete temporary participants and users
         temp_participants = conversation.participants.filter(is_temporary=True)
@@ -384,9 +396,6 @@ def chat_clear(request):
 def chat_delete(request, conversation_uuid):
     conversation = get_object_or_404(Conversation, uuid=conversation_uuid)
     Schedule.objects.filter(name=f"generate_messages_{conversation.uuid}").delete()
-
-    if settings.BUILD_CORE_MEMORIES:
-        async_task("chat.tasks.generate_core_memories", conversation)
     
     # Remove and delete temporary participants and users
     temp_participants = conversation.participants.filter(is_temporary=True)

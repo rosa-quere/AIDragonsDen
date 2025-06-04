@@ -1,16 +1,6 @@
 from django.contrib import admin
 
-from chat.models import Bot, Conversation, CoreMemory, LLMRequest, Message, Participant, Strategy, SubTopic, Segment, Settings
-
-
-class CoreMemoryInline(admin.TabularInline):
-    model = CoreMemory
-    extra = 0
-
-
-class BotAdmin(admin.ModelAdmin):
-    inlines = [CoreMemoryInline]
-
+from chat.models import Bot, Conversation, LLMRequest, Message, Participant, Strategy, SubTopic, Segment, Settings
 
 class LLMRequestAdmin(admin.ModelAdmin):
     readonly_fields = ("total_tokens", "completion_tokens")
@@ -18,11 +8,10 @@ class LLMRequestAdmin(admin.ModelAdmin):
 
 admin.site.register(Conversation)
 admin.site.register(Participant)
-admin.site.register(Bot, BotAdmin)
+admin.site.register(Bot)
 admin.site.register(Message)
 admin.site.register(Strategy)
 admin.site.register(SubTopic)
 admin.site.register(LLMRequest, LLMRequestAdmin)
-admin.site.register(CoreMemory)
 admin.site.register(Segment)
 admin.site.register(Settings)

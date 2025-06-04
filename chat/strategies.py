@@ -3,8 +3,8 @@ import numpy as np
 
 from django.conf import settings
 from django.utils import timezone
-from chat.bot import generate_message, check_turn_indirect
-from chat.helpers import detect_mention, detect_question, check_waiting, detect_human_mention, get_random_bot
+from chat.bot import generate_message, check_turn_mention
+from chat.helpers import detect_mention, check_waiting, detect_human_mention, get_random_bot
 from chat.dialog_analyzer import extract_utterance_features, extract_participant_features, get_active_participants
 from chat.models import Message, Conversation, Strategy
 from datetime import datetime
@@ -18,15 +18,13 @@ def mention(conversation):
     answers = {}
     
     for bot in bots:
-        messages = conversation.messages.exclude(triggered_bots__id=bot.id).exclude(participant__bot__id=bot.id)
-        mentionned_messaged = detect_mention(bot.name, messages)
-        if mentionned_messaged:
+        last_message = conversation.messages.order_by('timestamp').last()
+        if detect_mention(bot.name, last_message):
             logger.info(f'[INFO] Mention detected: {bot.name}')
-            for msg in mentionned_messaged:
-                msg.triggered_bots.add(bot)
-            response = generate_message(conversation, bot, "mention")
-            if response and response.lower().strip()!="no" and response.lower().strip()!="no.": 
-                answers[bot] = response
+            if check_turn_mention(conversation, bot):
+                response = generate_message(conversation, bot, "mention")
+                if response: 
+                    answers[bot] = response
     return answers if answers else False
     
 
@@ -158,8 +156,9 @@ def transition(conversation):
     strat_object = Strategy.objects.get(name="Transition")
     
     # Check if the sub-topic is well-discussed or losing interest
-    if (extract_utterance_features(conversation).count()==0 or active_ratio <= settings.INTEREST_THRESHOLD) and check_waiting(conversation, strat_object.triggered_at):
-        logger.info(f"[INFO] Transitioning to new sub-topic")
+    active_topics = extract_utterance_features(conversation)
+    if (active_topics.count()==0 or active_ratio <= settings.INTEREST_THRESHOLD) and check_waiting(conversation, strat_object.triggered_at):
+        logger.info(f"[INFO] Transitioning to new sub-topic, active ratio: {active_ratio}, active topics: {active_topics}")
         strat_object.triggered_at = timezone.now()
         strat_object.save()
         return True

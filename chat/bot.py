@@ -35,6 +35,18 @@ def check_turn(conversation, bot):
 
     return True
 
+def check_turn_mention(conversation, bot):
+    last_message = conversation.messages.order_by("timestamp").last()
+    messages = [
+        {
+            "role": "user",
+            "name": "System",
+            "content": prompts["is_turn_mention"].format(bot_name=bot.name, message=last_message.message),
+        }
+    ]
+    bot_response = prompt_llm_messages(messages, model=bot.model, temperature=bot.temperature)
+    return judge_bot_determination(bot_response)
+
 def check_turn_indirect(conversation, bot):
     last_message = conversation.messages.order_by("timestamp").last()
     system_prompt = get_system_prompt(conversation, bot)
@@ -161,6 +173,9 @@ def generate_strategy_message(conversation, bot, strategies):
     if detect_human_mention(last_message):
         logger.info(f"[INFO] Human Mention detected, not bot turn")
         return False
+    if not check_turn(conversation, bot) or not check_turn_indirect(conversation, bot):
+        logger.info(f"[INFO] No reason to speak, not bot turn")
+        return False
     strategies_list = strategies_to_prompt(strategies)
     messages.append(
         {
@@ -179,6 +194,7 @@ def generate_strategy_message(conversation, bot, strategies):
 def generate_message(conversation, bot, strategy, override_turn=False, post=False, **kwargs):
     messages = set_up(conversation, bot, override_turn)
     if messages is False:
+        logger.info("[INFO] Messages is False")
         return False
     introduction = items['Introduction'] if not has_participated(conversation, bot) else ''
     messages.append(

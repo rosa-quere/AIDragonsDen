@@ -55,36 +55,6 @@
     </div>
 </div>
 <script>
-    {% comment %} function startSpeechRecognition() {
-        const input = document.getElementById('message-input');
-    
-        // Check for browser support
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert("Speech recognition not supported in this browser.");
-            return;
-        }
-    
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-    
-        recognition.start();
-    
-        recognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            input.value = transcript;
-    
-            // Submit the form automatically after recognition
-            document.getElementById('chat-form').requestSubmit();
-        };
-    
-        recognition.onerror = function(event) {
-            console.error('Speech recognition error:', event.error);
-            alert("Speech recognition error: " + event.error);
-        };
-    } {% endcomment %}
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -109,9 +79,9 @@
         recognition.start();
 
         // Replace with stop button
-        document.getElementById('speech-controls').innerHTML = `
+        document.getElementById('speech-controls').innerHTML = 
             <button class="btn btn-danger" onclick="stopSpeechRecognition()" id="stop-btn">🛑</button>
-        `;
+        ;
         
     }
 
@@ -120,9 +90,9 @@
     }
 
     function resetToMicButton() {
-        document.getElementById('speech-controls').innerHTML = `
+        document.getElementById('speech-controls').innerHTML = 
             <button class="btn btn-outline-secondary" onclick="startSpeechRecognition()" id="start-btn">🎤</button>
-        `;
+        ;
     }
 
     </script>

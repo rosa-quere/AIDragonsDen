@@ -17,11 +17,6 @@ class Bot(models.Model):
     def __str__(self):
         return f"Bot {self.id} {self.name} ({self.model})"
 
-    def get_core_memories_for_prompt(self, n_last_memories=1000):
-        core_memories = self.core_memories.all().order_by("-timestamp")[:n_last_memories]
-        core_memories = [f"- {cm.memory}" for cm in core_memories]
-        return "\n".join(core_memories)
-
 
 class Strategy(models.Model):
     id = models.AutoField(primary_key=True)
@@ -34,7 +29,8 @@ class Strategy(models.Model):
 class SubTopic(models.Model):
     STATUS_CHOICES = (
         ("being discussed", "Being Discussed"),
-        ("well discussed", "Well Discussed")
+        ("well discussed", "Well Discussed"),
+        ("not discussed", "Not Discussed")
     )
     name = models.CharField(max_length=255)
     status = models.CharField(max_length=25, choices=STATUS_CHOICES)
@@ -45,6 +41,7 @@ class SubTopic(models.Model):
         return f"{self.name}, {self.status}"
 
 class Segment(models.Model):
+    id = models.AutoField(primary_key=True)
     settings = models.ForeignKey("Settings", null=True, blank=True, on_delete=models.CASCADE, related_name='segments')
     name = models.CharField(max_length=100, null=True, blank=True)
     prompt = models.TextField(blank=True, null=True)
@@ -154,13 +151,3 @@ class LLMRequest(models.Model):
 
     def __str__(self):
         return f"LLMRequest {self.id} at {self.timestamp}"
-
-
-class CoreMemory(models.Model):
-    id = models.AutoField(primary_key=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
-    memory = models.TextField()
-    bot = models.ForeignKey(Bot, on_delete=models.CASCADE, related_name="core_memories")
-
-    def __str__(self):
-        return f"CoreMemory {self.id} for Bot {self.bot.name} at {self.timestamp}"

@@ -1,13 +1,13 @@
 from django_q.models import Schedule
 from django.conf import settings
 
-from chat.llm import llm_conversation_title, llm_form_core_memories
+from chat.llm import llm_conversation_title
 from chat.models import Conversation
 from chat.strategies import mention, summarize, encourage, transition, resolve, chime_in, indirect
 from chat.bot import synthesize, post_message, generate_strategy_message
 from chat.helpers import estimate_delay, get_random_bot
 from chat.dialog_analyzer import update_sub_topics_status, update_accumulative_summary
-from chat.evaluation import engt_words_conv, engt_words_utt, evenness
+from chat.evaluation import get_metrics
 from django.utils import timezone
 from datetime import timedelta
 
@@ -32,7 +32,11 @@ def update_conversation_title(conversation_id):
     try:
         if conversation.messages.last().timestamp > conversation.title_update_date or conversation.title is None:
             llm_conversation_title(conversation)
-    except AttributeError:
+    except AttributeError as e:
+        logger.info(f"[ERROR] Failed to update title: {e}")
+        pass
+    except Exception as e:
+        logger.info(f"[ERROR] Unexpected error updating title: {e}")
         pass
 
     return True
@@ -40,9 +44,13 @@ def update_conversation_title(conversation_id):
 def update_conversation_subtopics(conversation_id):
     conversation = Conversation.objects.get(id=conversation_id)
     try:
-        if conversation.messages.last().timestamp > conversation.subtopics_updated_at or conversation.sub_topics.all() is None:
-            update_sub_topics_status(conversation)
-    except AttributeError:
+        update_sub_topics_status(conversation)
+        logger.info("[INFO] Updated subtopics")
+    except AttributeError as e:
+        logger.info(f"[ERROR] Failed to update subtopics: {e}")
+        pass
+    except Exception as e:
+        logger.info(f"[ERROR] Unexpected error updating subtopics: {e}")
         pass
 
     return True
@@ -53,7 +61,11 @@ def update_conversation_summary(conversation_id):
     try:
         if conversation.messages.last().timestamp > conversation.summary_update_date or conversation.summary is None:
             update_accumulative_summary(conversation)
-    except AttributeError:
+    except AttributeError as e:
+        logger.info(f"[ERROR] Failed to update summary: {e}")
+        pass
+    except Exception as e:
+        logger.info(f"[ERROR] Unexpected error updating summary: {e}")
         pass
 
     return True
@@ -61,20 +73,12 @@ def update_conversation_summary(conversation_id):
 def update_evaluation_metrics(conversation_id):
     conversation = Conversation.objects.get(id=conversation_id)
     try:
-        if conversation.messages.count() != 0:
-            metrics = {
-                "Average number of words per conversation: ": engt_words_conv(conversation),
-                "Average number of words per utterance: ": engt_words_utt(conversation),
-                "Evenness: ": evenness(conversation),
-            }
-            logger.info(f"[INFO] Updated metrics: {metrics}")
-
-            # Save to a local file
-            file_path = os.path.join(settings.BASE_DIR, f"metrics_{conversation.id}.json")
-            with open(file_path, "w") as f:
-                json.dump(metrics, f)
-            
-            logger.info(f"[INFO] Wrote metrics to file")
+        metrics = get_metrics(conversation)
+        # Save to a local file
+        file_path = os.path.join(settings.BASE_DIR, f"metrics_{conversation.id}.json")
+        with open(file_path, "w") as f:
+            json.dump(metrics, f)
+        
     except AttributeError as e:
         logger.info(f"[ERROR] Failed to update metrics: {e}")
         pass
@@ -141,8 +145,3 @@ def generate_messages(conversation_id):
         schedule_type='O',
         next_run=timezone.now() + timedelta(minutes=delay)
     )
-    
-def generate_core_memories(conversation):
-    bots = [participant.bot for participant in conversation.participants.filter(participant_type="bot")]
-    for bot in bots:
-        llm_form_core_memories(conversation, bot)

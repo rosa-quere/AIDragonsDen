@@ -1,0 +1,22 @@
+<div class="metrics-section p-3">
+    <h5>📊 Metrics</h5>
+    <ul>
+        {% for name, metric in metrics.items %}
+            <li>{{ name }} {{ metric }}</li>
+        {% empty %}
+            <li>No metrics yet.</li>
+        {% endfor %}
+    </ul>
+
+    <h5>🧩 Subtopics</h5>
+    <ul>
+        {% for topic in subtopics %}
+            <li>{{ topic }}</li>
+        {% empty %}
+            <li>No subtopics yet.</li>
+        {% endfor %}
+    </ul>
+
+    <h5>📝 Summary</h5>
+    <div>{{ summary|default:"No summary available yet."|linebreaksbr }}</div>
+</div>

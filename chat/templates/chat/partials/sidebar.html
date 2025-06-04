@@ -11,7 +11,7 @@
     </div>
 
     <hr>
-    
+
     <ul class="nav flex-column">
         <li class="nav-item mt-auto">
             <a class="text-center nav-link" href="{% url 'chat:user' %}">🔧 {{ user.first_name }} {{ user.last_name }}</a>
@@ -24,5 +24,22 @@
             <button class="btn btn-secondary" style="width:200px; margin: 15px;" type="submit">Log Out</button>
         </form>
     </div>
+
+    <!-- Spacer to push metrics down if page is short -->
+    <div style="flex-grow: 1;"></div>
+
+    {% if conversation and conversation.uuid %}
+    <!-- Sticky metrics wrapper -->
+    <div style="position: relative;">
+        <div id="sidebar-metrics"
+             class="bg-white p-3 border-top shadow-sm"
+             style="position: sticky; bottom: 0; z-index: 10;"
+             hx-get="{% url 'chat:load_sidebar_metrics' conversation.uuid %}"
+             hx-trigger="load, every 60s"
+             hx-swap="innerHTML">
+            {% include "chat/partials/metrics.html" %}
+        </div>
+    </div>
+    {% endif %}
     {% endif %}
 </div>

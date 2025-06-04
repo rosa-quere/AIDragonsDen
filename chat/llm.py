@@ -1,13 +1,13 @@
-import json
 import logging
 import time
 
 #import openai
 import mistralai
+import re
 from django.conf import settings
 from django.utils import timezone
 
-from chat.models import LLMRequest
+from chat.models import LLMRequest, SubTopic
 from chat.prompt_templates import prompts
 
 logger = logging.getLogger(__name__)
@@ -105,46 +105,43 @@ def llm_generate_segments(context, duration, format):
             }
         ]
 
-        bot_response = prompt_llm_messages(messages)
-        
-        if bot_response.strip().startswith("```"):
-            lines = bot_response.strip().splitlines()
-            # Remove first and last lines (code block markers)
-            bot_response = "\n".join(lines[1:-1])
+        bot_response = prompt_llm_messages(messages).strip()
+
+        # Extract JSON block using regex
+        json_match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", bot_response, re.DOTALL)
+        if json_match:
+            bot_response = json_match.group(1)
         
         return bot_response
+        
     except Exception as e:
         logger.error(f"Error auto generating segments: {e}")
         return context
-
-def llm_form_core_memories(conversation, bot):
-    if len(conversation.participants.filter(participant_type="bot")) == 0:
-        return False
-
-    # Only generate core memories if there are at least 5 messages in the conversation
-    if len(conversation.messages.all()) < 5:
-        logger.info(f"Conversation {conversation.uuid} has less than 5 messages, skipping core memory generation")
-        return False
-
-    conversation_text = "\n".join([f"{msg.participant.name()}: {msg.message}" for msg in conversation.messages.all()])
-
-    messages = [
-        {
-            "role": "system",
-            "name": "system",
-            "content": prompts["core_memories"].format(conversation_text=conversation_text, bot_name=bot.name),
-        }
-    ]
-
-    bot_response = prompt_llm_messages(messages, response_format={"type": "json_object"})
-
+    
+def llm_generate_subtopics(conversation):
+    settings = conversation.settings
     try:
-        core_memories = json.loads(bot_response)
-        logger.info(f"{len(core_memories['core_memories'])} core memories generated for {bot.name}")
-        for core_memory in core_memories["core_memories"]:
-            bot.core_memories.create(memory=core_memory)
+        messages = [
+            {
+                "role": "system",
+                "name": "system",
+                "content": prompts["generate_subtopics"].format(context=settings.context, segments=[segment.prompt for segment in settings.segments.all()]),
+            }
+        ]
 
-        return True
+        bot_response = prompt_llm_messages(messages)
+
+        for topic in bot_response.split(","):
+            if topic is None:
+                continue
+            sub_topic = SubTopic.objects.create(name=topic.lstrip(), status="Not Discussed", conversation=conversation)
+            sub_topic.save()
+            conversation.sub_topics.add(sub_topic)
+            conversation.save()
+            
+        conversation.subtopics_updated_at = timezone.now()
+        conversation.save()
+        
     except Exception as e:
-        logger.error(f"Error generating core memories: {e}")
-        return False
+        logger.error(f"Error generating subtopics: {e}")
+        return 

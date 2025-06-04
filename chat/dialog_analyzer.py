@@ -4,7 +4,6 @@ from django.conf import settings
 from django.utils import timezone
 
 from chat.llm import prompt_llm_messages
-from chat.models import Message, SubTopic
 from chat.prompt_templates import prompts
 from collections import Counter
 from chat.helpers import get_last_active_bot
@@ -16,16 +15,12 @@ def update_sub_topics_status(conversation):
     """
     Categorizes sub-topics as Not Discussed, Being Discussed, or Well Discussed.
     """
-    # Prepare the system message using MUCA's prompt
-    system_prompt = prompts["muca"]
-    
-    messages = [{"role": "system", "name": "system", "content": system_prompt}]
 
     # Retrieve N messages for the conversation ordered by timestamp
     N = settings.SHORT_TERM_CONTEXT
     conversation_messages = conversation.messages.order_by("-timestamp")[:N]
 
-    # Convert each message into the format required by LLM
+    messages = []
     for msg in conversation_messages:
         role = "user" if msg.participant.participant_type == "user" else "assistant"
         messages.append(
@@ -40,7 +35,7 @@ def update_sub_topics_status(conversation):
         {
             "role": "user",
             "name": "System",
-            "content": prompts["sub_topics"].format(list_of_sub_topics=conversation.sub_topics.all()),
+            "content": prompts["update_subtopics"].format(list_of_sub_topics=[t.name for t in conversation.sub_topics.all()]),
         }
     )
     bot_response = prompt_llm_messages(messages, model=settings.MUCA["model"], temperature=settings.MUCA["temperature"])
@@ -48,19 +43,18 @@ def update_sub_topics_status(conversation):
     if bot_response is False:
         return False
     else:
-        for pair in bot_response.split("\n"):
-            if pair is None:
-                continue
-            ts = pair.split(",")
-            if len(ts) != 2:
-                continue
-            sub_topic, created = SubTopic.objects.get_or_create(name=ts[0], conversation=conversation)
-            sub_topic.status = ts[1].lstrip()
-            sub_topic.save()
-            if created:
-                conversation.sub_topics.add(sub_topic)
-                conversation.subtopics_updated_at = timezone.now()
-                conversation.save()
+        topics = bot_response.split(",")
+        topics = [t.lstrip() for t in topics]
+        logger.info(f"being discussed topics: {topics}")
+        logger.info(f"previous topics: {conversation.sub_topics.all()}")
+        for topic in conversation.sub_topics.all():
+            if topic.name in topics and topic.status == "Not Discussed":
+                topic.status = "Being Discussed"
+                topic.save()
+            if topic.name not in topics and topic.status == "Being Discussed":
+                topic.status = "Well Discussed"
+                topic.save()
+        logger.info(f"updated topics: {conversation.sub_topics.all()}")
         
         logger.info(f"[MUCA] Updating Sub-Topics and Statuses")
         return True
