@@ -20,8 +20,9 @@ prompts = {
     "combine_answers": "You are {bot_name}. Based on the system prompt and these messages, combine them all in a single response as {bot_name}. You can also @mention other participants if it makes sense, but don't overuse it; try to avoid bot-only conversations and side discussion i.e. it is a group chat. Avoid similar responses to the ones before and try to always drive the conversation forward. Make sure to stay within character. Keep your answer short. Don't ask more than one question.",
     "combine_strategies": "You are {bot_name}. Based on the system prompt and these messages, generate a single short answer combining {strategies_list}. You can also @mention other participants if it makes sense, but don't overuse it; try to avoid bot-only conversations and side discussion i.e. it is a group chat. Avoid similar responses to the ones before and try to always drive the conversation forward. Make sure to stay within character and keep your answer short. Don't ask more than one question.",
     "is_turn": "You are {bot_name}. Based on the system prompt, segment, conversation settings and last message, is it my turn to speak? Reply only by yes or no.",
-    "evaluation": "Using the previous messages and the conversation context {context}, select the most appropriate option from this list of options: {options} to evaluate the last message's {metric}. Only reply with the option picked.",
-    "overall_evaluation": "Using the previous messages and the conversation context {context}, select the most appropriate option from this list of options: {options} to evaluate the conversation's overall {metric}. Never evaluate the users' messages, only the bots'. Only reply with the option picked.",
+    "evaluation": "Using the previous message and the conversation context {context}, select the most appropriate option from this list of options: {options} to evaluate the last message's {metric}. Never evaluate the users' messages, only the bots' responses using the list of bots' names {bots}. Be harsh. Only reply with the exact text of the option picked.",
+    "overall_evaluation": "Using the bots' messages and the conversation context {context}, select the most appropriate option from this list of options: {options} to evaluate the bots' responses' overall {metric}. Be harsh. Only reply with the one option picked in the same format, nothing more.",
+    "baseline": "Given the previous message, generate an answer for all of the following bots {bots} using the following strategies {strategies}. If a bot should remain silent, make its answer an empty string. Keep your response short and in context. Reply in the following inline format 'bot_name: generated_answer' on the same line, and use a new line for each bot. Do not skip lines between the bot name and its answer."
 }
 
 items = {
@@ -31,10 +32,13 @@ items = {
     "Resolve": "a suggestion to help reach consensus, recalling an earlier interesting point or comment if needed, ",
     "Chime-in": "a suggestion to break conversational deadlock",
     "Introduction": "greet the user and introduce yourself briefly (not personality-wise but more what you specialise in and what you have done) then",
+    "strategies": [{"Keep silent": "Do not respond if the message does not require input from the bot."},
+                   {"Direct chatting": "If a user addresses the assistant or asks a general question, provide a direct, helpful, and concise response."}],
     "timing": "timing i.e was the message sent at the right time? Only focus on the timing of the message, not the content. E.g. pick 'Chime-in insufficiently' if someone was mentioned but did not reply, or if a question was asked and no one replied. Only pick 'Chime-in at the wrong timing' if it really is out of place e.g. the previous message was asking a question to someone else.",
-    "content": "content i.e does the message content contribute to the discussion, avoid redundant questions, and keep responses concise? Only focus on the content of the message.",
+    "content": "content i.e does the message content contribute to the discussion, avoid redundant questions, and keep responses concise? Only focus on the content of the message. If picking 'Irrelevant', it should be with respect to the previous message.",
     "participation": "contribution to participation encouragement i.e. how does the last message contribute to the balance of the group participation per user?",
-    "efficiency": "efficiency i.e. the chatbots' timely responses",
-    "conciseness": "conciseness i.e. the chatbot' on-point and non-redundant response",
-    "usefulness": "usefulness i.e. whether the chatbots' responses are helpful or insightful."
+    "humanness": "similarity to human language i.e. could this message have been written by a human?",
+    "conciseness": "conciseness i.e. whether the chatbots' responses are on-point and non-redundant",
+    "usefulness": "usefulness i.e. whether the chatbots' responses are helpful or insightful",
+    "purposefulness": "purposefulness i.e. whether the chatbots' responses are evolving in a natural way towards the goal from the conversation context"
 }
