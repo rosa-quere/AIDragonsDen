@@ -99,7 +99,6 @@ METRICS_OPTIONS = {
     ],
     "participation": [
         "The chatbot did not ping anyone",
-        "Not applicable",
         "Feel pressured to respond",
         "Feel embarrassed or isolated",
         "Feel annoyed or attacked",
@@ -174,17 +173,19 @@ def plot_evaluation_scores(data_dict, path):
         center_key = "Fair"
         right_keys = ["Poor", "Very Poor"]
 
-        # Build bar
         y_pos = n - 1 - i  # top-down
-        start = 0
+        
+        center_width = percentages.get(center_key, 0)
+        
+        start = center_width/2
         for key in reversed(left_keys):
-            width = -percentages[key]
-            ax.barh(y_pos, width, left=start, color=color_map[key])
+            width = percentages[key]
+            ax.barh(y_pos, -width, left=-start, color=color_map[key])
             start += width
+        
+        ax.barh(y_pos, center_width, left=-center_width / 2, color=color_map[center_key])
 
-        ax.barh(y_pos, percentages[center_key], left=0, color=color_map[center_key])
-
-        start = percentages[center_key]
+        start = center_width/2
         for key in right_keys:
             width = percentages[key]
             ax.barh(y_pos, width, left=start, color=color_map[key])
@@ -339,7 +340,7 @@ def evaluate_user_study(conversation, baseline=False):
         file_path = os.path.join(folder_path, f"metrics_baseline.json")
     else:
         data = get_conversation_dict(conversation)
-        metrics = get_metrics(data)
+        metrics = get_metrics(conversation)
         file_path = os.path.join(folder_path, f"metrics.json")
         
     with open(file_path, "w") as f:

@@ -107,7 +107,7 @@ def encourage(conversation):
     """
     Encourages less vocal participants (lurkers) to engage in the conversation.
     """
-    participant_stats = extract_participant_features(conversation, context=settings.LONG_TERM_CONTEXT)
+    participant_stats = extract_participant_features(conversation, context=settings.SHORT_TERM_CONTEXT)
     if not participant_stats or len(participant_stats) < 2:
         return False
     # Compute overall frequency and length statistics

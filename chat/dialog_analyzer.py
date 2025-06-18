@@ -106,21 +106,21 @@ def extract_participant_features(conversation, context=settings.SHORT_TERM_CONTE
     Extracts participants statistics like frequency and message length.
     """
     messages = conversation.messages.all().order_by("-timestamp")[:context]
+    participants = conversation.participants.all()
     user_message_count = Counter()
     user_word_count = Counter()
+    user_stats = {participant:{"freq": 0, "len": 0} for participant in participants}
     
     for msg in messages:
         user_message_count[msg.participant] += 1
         user_word_count[msg.participant] += len(msg.message)
 
     # Compile user statistics
-    user_stats = {
-        user: {
+    for user in user_message_count:
+        user_stats[user] = {
             "freq": user_message_count[user],
             "len": user_word_count[user],
         }
-        for user in user_message_count
-    }
     
     return user_stats
 

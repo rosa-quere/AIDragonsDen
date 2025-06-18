@@ -99,7 +99,7 @@ def estimate_delay(conversation):
     if not last_message: # no messages need to send message now
         return 0
     if last_message.participant.bot: # last message was from a bot, need to wait for the user's input
-        return 5 # 5min
+        return 3 # 3min
     else:
         return 0.5 # 30s to give the user a chance to expand on their message
     
